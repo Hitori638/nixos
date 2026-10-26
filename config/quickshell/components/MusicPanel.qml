@@ -12,14 +12,16 @@ PanelWindow {
 	visible: true
 	exclusionMode: ExclusionMode.Ignore
 	anchors {
-		top: true
+		bottom: root.barPosition !== "top"
 		left: true
 		right: true
+		top: root.barPosition === "top"
 	}
 	margins {
-		top: root.musicVisible ? 50 : -350
-		left: 0
-		right: 0
+		bottom: root.musicVisible ? root.barGapV : -(musicPanel.implicitHeight + 40)
+		left: (0) + root.barInsetLeft
+		right: (0) + root.barInsetRight
+		top: root.musicVisible ? root.barGapV : -(musicPanel.implicitHeight + 40)
 	}
 	implicitWidth: 400
 	implicitHeight: musicPanel.gifSelectorOpen
@@ -28,7 +30,14 @@ PanelWindow {
 			? 188 + 8 + 28 + 1 + 34 + (musicPanel.availablePlayers.length * 34) + 16
 			: 188)
 	color: "transparent"
+	mask: Region { item: root.musicVisible ? musicClickfix : null }
 	focusable: true
+	Connections {
+		target: root
+		function onMusicVisibleChanged() {
+			if (!root.musicVisible) { musicPanel.playerDropdownOpen = false; musicPanel.gifSelectorOpen = false }
+		}
+	}
 	WlrLayershell.keyboardFocus: root.musicVisible ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 	Behavior on margins.top {
 		NumberAnimation {
@@ -76,6 +85,58 @@ PanelWindow {
 	property string resolvedPlayer: "%any"
 	property var availablePlayers: []
 	property bool playerDropdownOpen: false
+
+	// ── Cava-reactive background ── qs-update ───────────────────────────
+	property int cavaBarCount: 28
+	property var cavaVals: []
+	property var cavaColors: []
+	property real bass: 0
+	function shuffleCavaColors() {
+		var pal = [root.walColor5, root.walColor13, root.walColor2, root.walColor4,
+		           root.walColor6, root.walColor12, root.walPeach, root.walColor1]
+		var c = []
+		for (var i = 0; i < cavaBarCount; i++) c.push(pal[Math.floor(Math.random() * pal.length)])
+		cavaColors = c
+	}
+	Component.onCompleted: {
+		var v = []
+		for (var i = 0; i < cavaBarCount; i++) v.push(0.04)
+		cavaVals = v
+		shuffleCavaColors()
+	}
+	onTrackTitleChanged: shuffleCavaColors()
+	Connections {
+		target: root
+		function onLightModeChanged() { musicPanel.shuffleCavaColors() }
+	}
+	Process {
+		id: panelCavaProc
+		running: root.musicVisible && musicPanel.playerStatus === "Playing"
+		command: ["cava", "-p", Quickshell.env("HOME") + "/.config/cava/config_panel"]
+		stdout: SplitParser {
+			onRead: data => {
+				var parts = data.trim().split(";")
+				var vals = []
+				for (var i = 0; i < musicPanel.cavaBarCount; i++) {
+					var n = parseInt(parts[i])
+					vals.push(isNaN(n) ? 0 : Math.min(1, n / 1000))
+				}
+				musicPanel.cavaVals = vals
+				musicPanel.bass = (vals[0] + vals[1] + vals[2] + vals[3]) / 4
+			}
+		}
+	}
+	Timer {
+		interval: 60
+		running: !panelCavaProc.running && musicPanel.bass + (musicPanel.cavaVals[8] || 0) > 0.02
+		repeat: true
+		onTriggered: {
+			var v = []
+			for (var i = 0; i < musicPanel.cavaVals.length; i++) v.push(musicPanel.cavaVals[i] * 0.82)
+			musicPanel.cavaVals = v
+			musicPanel.bass = musicPanel.bass * 0.82
+		}
+	}
 
 	function formatTime(seconds) {
 		var mins = Math.floor(seconds / 60)
@@ -250,6 +311,7 @@ PanelWindow {
 		}
 	}
 	Item {
+		id: musicClickfix   // the panel's input area (none while closed)
 		anchors.fill: parent
 		focus: root.musicVisible
 		Keys.onPressed: function(event) {
@@ -286,6 +348,7 @@ PanelWindow {
 			anchors.horizontalCenter: parent.horizontalCenter
 			spacing: 8
 			Rectangle {
+				id: musicCard
 				width: 400
 				height: 180
 				color: Qt.rgba(root.walBackground.r, root.walBackground.g, root.walBackground.b, 0.95)
@@ -293,6 +356,53 @@ PanelWindow {
     border.color: Qt.rgba(root.walColor5.r, root.walColor5.g, root.walColor5.b, 0.45)
 				radius: 15
 				clip: true
+				// cava bars behind the card content — random palette colours, reshuffled per track
+				Item {
+					id: cavaBackdrop
+					anchors.fill: parent
+					anchors.margins: 1
+					Row {
+						id: cavaBgRow
+						anchors.fill: parent
+						anchors.leftMargin: 10
+						anchors.rightMargin: 10
+						spacing: 3
+						Repeater {
+							model: musicPanel.cavaBarCount
+							delegate: Rectangle {
+								required property int index
+								readonly property real level: musicPanel.cavaVals[index] || 0
+								width: (cavaBgRow.width - (musicPanel.cavaBarCount - 1) * cavaBgRow.spacing) / musicPanel.cavaBarCount
+								height: Math.max(5, level * cavaBgRow.height * 0.95)
+								anchors.bottom: parent.bottom
+								radius: Math.min(width / 2, 5)
+								color: musicPanel.cavaColors[index] || root.walColor5
+								opacity: 0.28 + level * 0.42
+								antialiasing: true
+								Behavior on height { NumberAnimation { duration: 80; easing.type: Easing.OutQuad } }
+								Behavior on color { ColorAnimation { duration: 700 } }
+							}
+						}
+					}
+					// readability scrim: solid behind the title, open towards the bars
+					Rectangle {
+						anchors.fill: parent
+						radius: 14
+						gradient: Gradient {
+							GradientStop { position: 0.0; color: Qt.rgba(root.walBackground.r, root.walBackground.g, root.walBackground.b, 0.82) }
+							GradientStop { position: 0.55; color: Qt.rgba(root.walBackground.r, root.walBackground.g, root.walBackground.b, 0.45) }
+							GradientStop { position: 1.0; color: Qt.rgba(root.walBackground.r, root.walBackground.g, root.walBackground.b, 0.08) }
+						}
+					}
+					// bass glow
+					Rectangle {
+						anchors.fill: parent
+						radius: 14
+						color: "transparent"
+						border.width: 2
+						border.color: Qt.rgba(root.walColor5.r, root.walColor5.g, root.walColor5.b, Math.min(0.9, musicPanel.bass * 1.1))
+					}
+				}
 				RowLayout {
 					anchors.fill: parent
 					anchors.margins: 15
@@ -320,7 +430,7 @@ PanelWindow {
 								radius: 7
 								color: playerBtnMa.containsMouse || musicPanel.playerDropdownOpen
 									? Qt.rgba(root.walColor5.r, root.walColor5.g, root.walColor5.b, 0.25)
-									: Qt.rgba(0, 0, 0, 0.35)
+									: root.card(0.35)
 								border.width: musicPanel.playerDropdownOpen ? 1 : 0
 								border.color: Qt.rgba(root.walColor5.r, root.walColor5.g, root.walColor5.b, 0.5)
 								Behavior on color {
@@ -391,7 +501,7 @@ PanelWindow {
 								Layout.fillWidth: true
 								height: 4
 								radius: 2
-								color: Qt.rgba(0, 0, 0, 0.5)
+								color: root.card(0.5)
 								Rectangle {
 									width: musicPanel.length > 0 ? parent.width * (musicPanel.position / musicPanel.length) : 0
 									height: parent.height
@@ -425,7 +535,7 @@ PanelWindow {
 								width: 32
 								height: 32
 								radius: 8
-								color: prevMa.containsMouse ? Qt.rgba(1,1,1,0.1) : "transparent"
+								color: prevMa.containsMouse ? root.hover(0.1) : "transparent"
 								Text {
 									anchors.centerIn: parent
 									text: "󰒮"
@@ -463,7 +573,7 @@ PanelWindow {
 								width: 32
 								height: 32
 								radius: 8
-								color: nextMa.containsMouse ? Qt.rgba(1,1,1,0.1) : "transparent"
+								color: nextMa.containsMouse ? root.hover(0.1) : "transparent"
 								Text {
 									anchors.centerIn: parent
 									text: "󰒭"
@@ -614,7 +724,7 @@ PanelWindow {
 							width: 24
 							height: 24
 							radius: 12
-							color: gifEditMa.containsMouse ? Qt.rgba(1,1,1,0.2) : Qt.rgba(0,0,0,0.3)
+							color: gifEditMa.containsMouse ? root.hover(0.2) : root.card(0.3)
 							Behavior on color {
 								ColorAnimation { duration: 150 }
 							}
@@ -659,71 +769,134 @@ PanelWindow {
 							vinylSpinAnim.stop()
 					}
 				}
+			}
+			Rectangle {
+				id: playerDropdownCard
+				width: 380
+				anchors.horizontalCenter: parent.horizontalCenter
+				height: visible ? (28 + 1 + 34 + (musicPanel.availablePlayers.length * 34) + 16) : 0
+				radius: 12
+				color: Qt.rgba(root.walBackground.r, root.walBackground.g, root.walBackground.b, 0.92)
+				border.color: Qt.rgba(root.walColor5.r, root.walColor5.g, root.walColor5.b, 0.45)
+				border.width: 1
+				visible: musicPanel.playerDropdownOpen && !musicPanel.gifSelectorOpen
+				clip: true
+				Item {
+					id: pdHeader
+					anchors.top: parent.top
+					anchors.left: parent.left
+					anchors.right: parent.right
+					anchors.margins: 8
+					height: 28
+					Text {
+						anchors.left: parent.left
+						anchors.verticalCenter: parent.verticalCenter
+						anchors.leftMargin: 6
+						text: "󰝚  Select Player"
+						color: root.walColor5
+						font.pixelSize: 11
+						font.bold: true
+						font.family: "JetBrainsMono Nerd Font"
+					}
+					Text {
+						anchors.right: parent.right
+						anchors.verticalCenter: parent.verticalCenter
+						anchors.rightMargin: 6
+						text: musicPanel.availablePlayers.length === 0 ? "No players" : musicPanel.availablePlayers.length + " found"
+						color: root.walColor8
+						font.pixelSize: 9
+						font.family: "JetBrainsMono Nerd Font"
+						opacity: 0.6
+					}
+				}
 				Rectangle {
-					id: playerDropdownCard
-					width: 380
-					anchors.horizontalCenter: parent.horizontalCenter
-					height: visible ? (28 + 1 + 34 + (musicPanel.availablePlayers.length * 34) + 16) : 0
-					radius: 12
-					color: Qt.rgba(root.walBackground.r, root.walBackground.g, root.walBackground.b, 0.92)
-					border.color: Qt.rgba(root.walColor5.r, root.walColor5.g, root.walColor5.b, 0.45)
-					border.width: 1
-					visible: musicPanel.playerDropdownOpen && !musicPanel.gifSelectorOpen
-					clip: true
-					Item {
-						id: pdHeader
-						anchors.top: parent.top
-						anchors.left: parent.left
-						anchors.right: parent.right
-						anchors.margins: 8
-						height: 28
-						Text {
-							anchors.left: parent.left
-							anchors.verticalCenter: parent.verticalCenter
-							anchors.leftMargin: 6
-							text: "󰝚  Select Player"
-							color: root.walColor5
-							font.pixelSize: 11
-							font.bold: true
-							font.family: "JetBrainsMono Nerd Font"
-						}
-						Text {
-							anchors.right: parent.right
-							anchors.verticalCenter: parent.verticalCenter
-							anchors.rightMargin: 6
-							text: musicPanel.availablePlayers.length === 0 ? "No players" : musicPanel.availablePlayers.length + " found"
-							color: root.walColor8
-							font.pixelSize: 9
-							font.family: "JetBrainsMono Nerd Font"
-							opacity: 0.6
-						}
-					}
+					id: pdDivider
+					anchors.top: pdHeader.bottom
+					anchors.left: parent.left
+					anchors.right: parent.right
+					anchors.leftMargin: 8
+					anchors.rightMargin: 8
+					height: 1
+					color: root.hover(0.06)
+				}
+				Column {
+					id: pdRows
+					anchors.top: pdDivider.bottom
+					anchors.left: parent.left
+					anchors.right: parent.right
+					anchors.leftMargin: 8
+					anchors.rightMargin: 8
+					anchors.topMargin: 2
+					spacing: 2
 					Rectangle {
-						id: pdDivider
-						anchors.top: pdHeader.bottom
-						anchors.left: parent.left
-						anchors.right: parent.right
-						anchors.leftMargin: 8
-						anchors.rightMargin: 8
-						height: 1
-						color: Qt.rgba(1,1,1,0.06)
+						width: parent.width
+						height: 34
+						radius: 8
+						color: musicPanel.activePlayer === "%any"
+							? Qt.rgba(root.walColor5.r, root.walColor5.g, root.walColor5.b, 0.18)
+							: autoMa.containsMouse ? root.hover(0.07) : "transparent"
+						Behavior on color {
+							ColorAnimation { duration: 120 }
+						}
+						Row {
+							anchors.fill: parent
+							anchors.leftMargin: 10
+							anchors.rightMargin: 10
+							spacing: 8
+							Text {
+								anchors.verticalCenter: parent.verticalCenter
+								text: "󰝚"
+								color: musicPanel.activePlayer === "%any" ? root.walColor5 : root.walColor8
+								font.pixelSize: 14
+								font.family: "JetBrainsMono Nerd Font"
+							}
+							Text {
+								anchors.verticalCenter: parent.verticalCenter
+								text: "Auto"
+								color: musicPanel.activePlayer === "%any" ? root.walColor5 : root.walForeground
+								font.pixelSize: 12
+								font.bold: musicPanel.activePlayer === "%any"
+								font.family: "JetBrainsMono Nerd Font"
+								width: 120
+							}
+							Text {
+								anchors.verticalCenter: parent.verticalCenter
+								text: "any active"
+								color: root.walColor8
+								font.pixelSize: 9
+								font.family: "JetBrainsMono Nerd Font"
+								opacity: 0.5
+							}
+							Text {
+								anchors.verticalCenter: parent.verticalCenter
+								visible: musicPanel.activePlayer === "%any"
+								text: "󰄬"
+								color: root.walColor5
+								font.pixelSize: 12
+								font.family: "JetBrainsMono Nerd Font"
+							}
+						}
+						MouseArea {
+							id: autoMa
+							anchors.fill: parent
+							hoverEnabled: true
+							cursorShape: Qt.PointingHandCursor
+							onClicked: {
+								musicPanel.activePlayer = "%any"
+								musicPanel.playerDropdownOpen = false
+								if (!musicStatusProc.running) musicStatusProc.running = true
+							}
+						}
 					}
-					Column {
-						id: pdRows
-						anchors.top: pdDivider.bottom
-						anchors.left: parent.left
-						anchors.right: parent.right
-						anchors.leftMargin: 8
-						anchors.rightMargin: 8
-						anchors.topMargin: 2
-						spacing: 2
+					Repeater {
+						model: musicPanel.availablePlayers
 						Rectangle {
-							width: parent.width
+							width: pdRows.width
 							height: 34
 							radius: 8
-							color: musicPanel.activePlayer === "%any"
+							color: musicPanel.activePlayer === modelData
 								? Qt.rgba(root.walColor5.r, root.walColor5.g, root.walColor5.b, 0.18)
-								: autoMa.containsMouse ? Qt.rgba(1,1,1,0.07) : "transparent"
+								: playerItemMa.containsMouse ? root.hover(0.07) : "transparent"
 							Behavior on color {
 								ColorAnimation { duration: 120 }
 							}
@@ -734,31 +907,24 @@ PanelWindow {
 								spacing: 8
 								Text {
 									anchors.verticalCenter: parent.verticalCenter
-									text: "󰝚"
-									color: musicPanel.activePlayer === "%any" ? root.walColor5 : root.walColor8
+									text: musicPanel.playerIcon(modelData)
+									color: musicPanel.activePlayer === modelData ? root.walColor5 : root.walColor8
 									font.pixelSize: 14
 									font.family: "JetBrainsMono Nerd Font"
 								}
 								Text {
 									anchors.verticalCenter: parent.verticalCenter
-									text: "Auto"
-									color: musicPanel.activePlayer === "%any" ? root.walColor5 : root.walForeground
+									text: musicPanel.playerDisplayName(modelData)
+									color: musicPanel.activePlayer === modelData ? root.walColor5 : root.walForeground
 									font.pixelSize: 12
-									font.bold: musicPanel.activePlayer === "%any"
+									font.bold: musicPanel.activePlayer === modelData
 									font.family: "JetBrainsMono Nerd Font"
-									width: 120
+									width: 200
+									elide: Text.ElideRight
 								}
 								Text {
 									anchors.verticalCenter: parent.verticalCenter
-									text: "any active"
-									color: root.walColor8
-									font.pixelSize: 9
-									font.family: "JetBrainsMono Nerd Font"
-									opacity: 0.5
-								}
-								Text {
-									anchors.verticalCenter: parent.verticalCenter
-									visible: musicPanel.activePlayer === "%any"
+									visible: musicPanel.activePlayer === modelData
 									text: "󰄬"
 									color: root.walColor5
 									font.pixelSize: 12
@@ -766,76 +932,20 @@ PanelWindow {
 								}
 							}
 							MouseArea {
-								id: autoMa
+								id: playerItemMa
 								anchors.fill: parent
 								hoverEnabled: true
 								cursorShape: Qt.PointingHandCursor
 								onClicked: {
-									musicPanel.activePlayer = "%any"
+									musicPanel.activePlayer = modelData
 									musicPanel.playerDropdownOpen = false
 									if (!musicStatusProc.running) musicStatusProc.running = true
 								}
 							}
 						}
-						Repeater {
-							model: musicPanel.availablePlayers
-							Rectangle {
-								width: pdRows.width
-								height: 34
-								radius: 8
-								color: musicPanel.activePlayer === modelData
-									? Qt.rgba(root.walColor5.r, root.walColor5.g, root.walColor5.b, 0.18)
-									: playerItemMa.containsMouse ? Qt.rgba(1,1,1,0.07) : "transparent"
-								Behavior on color {
-									ColorAnimation { duration: 120 }
-								}
-								Row {
-									anchors.fill: parent
-									anchors.leftMargin: 10
-									anchors.rightMargin: 10
-									spacing: 8
-									Text {
-										anchors.verticalCenter: parent.verticalCenter
-										text: musicPanel.playerIcon(modelData)
-										color: musicPanel.activePlayer === modelData ? root.walColor5 : root.walColor8
-										font.pixelSize: 14
-										font.family: "JetBrainsMono Nerd Font"
-									}
-									Text {
-										anchors.verticalCenter: parent.verticalCenter
-										text: musicPanel.playerDisplayName(modelData)
-										color: musicPanel.activePlayer === modelData ? root.walColor5 : root.walForeground
-										font.pixelSize: 12
-										font.bold: musicPanel.activePlayer === modelData
-										font.family: "JetBrainsMono Nerd Font"
-										width: 200
-										elide: Text.ElideRight
-									}
-									Text {
-										anchors.verticalCenter: parent.verticalCenter
-										visible: musicPanel.activePlayer === modelData
-										text: "󰄬"
-										color: root.walColor5
-										font.pixelSize: 12
-										font.family: "JetBrainsMono Nerd Font"
-									}
-								}
-								MouseArea {
-									id: playerItemMa
-									anchors.fill: parent
-									hoverEnabled: true
-									cursorShape: Qt.PointingHandCursor
-									onClicked: {
-										musicPanel.activePlayer = modelData
-										musicPanel.playerDropdownOpen = false
-										if (!musicStatusProc.running) musicStatusProc.running = true
-									}
-								}
-							}
-						}
 					}
 				}
-			}
+				}
 			Rectangle {
 				id: dropdownCard
 				width: 380
@@ -877,7 +987,7 @@ PanelWindow {
 							radius: 10
 							color: dropCloseMa.containsMouse
 								? Qt.rgba(root.walColor1.r, root.walColor1.g, root.walColor1.b, 0.5)
-								: Qt.rgba(1,1,1,0.08)
+								: root.hover(0.08)
 							Behavior on color {
 								ColorAnimation { duration: 150 }
 							}
@@ -908,7 +1018,7 @@ PanelWindow {
 							radius: 8
 							color: musicPanel.pickerTab === 0
 								? Qt.rgba(root.walColor5.r, root.walColor5.g, root.walColor5.b, 0.2)
-								: gifTabMa.containsMouse ? Qt.rgba(1,1,1,0.06) : Qt.rgba(1,1,1,0.03)
+								: gifTabMa.containsMouse ? root.hover(0.06) : root.hover(0.03)
 							border.width: musicPanel.pickerTab === 0 ? 1 : 0
 							border.color: Qt.rgba(root.walColor5.r, root.walColor5.g, root.walColor5.b, 0.4)
 							Behavior on color {
@@ -943,7 +1053,7 @@ PanelWindow {
 							radius: 8
 							color: musicPanel.pickerTab === 1
 								? Qt.rgba(root.walColor13.r, root.walColor13.g, root.walColor13.b, 0.2)
-								: vinylTabMa.containsMouse ? Qt.rgba(1,1,1,0.06) : Qt.rgba(1,1,1,0.03)
+								: vinylTabMa.containsMouse ? root.hover(0.06) : root.hover(0.03)
 							border.width: musicPanel.pickerTab === 1 ? 1 : 0
 							border.color: Qt.rgba(root.walColor13.r, root.walColor13.g, root.walColor13.b, 0.4)
 							Behavior on color {
@@ -979,7 +1089,7 @@ PanelWindow {
 						Rectangle {
 							anchors.fill: parent
 							radius: 12
-							color: Qt.rgba(0,0,0,0.2)
+							color: root.card(0.2)
 							border.color: Qt.rgba(1,1,1,0.08)
 							border.width: 1
 							clip: true
@@ -1029,7 +1139,7 @@ PanelWindow {
 								width: gifNameLabel2.implicitWidth + 12
 								height: 18
 								radius: 9
-								color: Qt.rgba(0,0,0,0.6)
+								color: root.card(0.6)
 								Text {
 									id: gifNameLabel2
 									anchors.centerIn: parent
@@ -1132,7 +1242,7 @@ PanelWindow {
 									radius: 8
 									color: musicPanel.vinylWithArt
 										? Qt.rgba(root.walColor13.r, root.walColor13.g, root.walColor13.b, 0.18)
-										: withArtMa.containsMouse ? Qt.rgba(1,1,1,0.06) : Qt.rgba(1,1,1,0.03)
+										: withArtMa.containsMouse ? root.hover(0.06) : root.hover(0.03)
 									border.width: musicPanel.vinylWithArt ? 1 : 0
 									border.color: Qt.rgba(root.walColor13.r, root.walColor13.g, root.walColor13.b, 0.4)
 									Behavior on color {
@@ -1165,7 +1275,7 @@ PanelWindow {
 									radius: 8
 									color: !musicPanel.vinylWithArt
 										? Qt.rgba(root.walColor13.r, root.walColor13.g, root.walColor13.b, 0.18)
-										: noArtMa.containsMouse ? Qt.rgba(1,1,1,0.06) : Qt.rgba(1,1,1,0.03)
+										: noArtMa.containsMouse ? root.hover(0.06) : root.hover(0.03)
 									border.width: !musicPanel.vinylWithArt ? 1 : 0
 									border.color: Qt.rgba(root.walColor13.r, root.walColor13.g, root.walColor13.b, 0.4)
 									Behavior on color {
@@ -1206,10 +1316,10 @@ PanelWindow {
 							radius: 8
 							color: prevGifMa.containsMouse
 								? Qt.rgba(root.walColor5.r, root.walColor5.g, root.walColor5.b, 0.25)
-								: Qt.rgba(1,1,1,0.08)
+								: root.hover(0.08)
 							border.color: prevGifMa.containsMouse
 								? Qt.rgba(root.walColor5.r, root.walColor5.g, root.walColor5.b, 0.4)
-								: Qt.rgba(1,1,1,0.05)
+								: root.hover(0.05)
 							border.width: 1
 							opacity: musicPanel.gifFiles.length > 1 ? 1.0 : 0.3
 							Behavior on color { ColorAnimation { duration: 150 } }
@@ -1237,10 +1347,10 @@ PanelWindow {
 							radius: 8
 							color: nextGifMa.containsMouse
 								? Qt.rgba(root.walColor5.r, root.walColor5.g, root.walColor5.b, 0.25)
-								: Qt.rgba(1,1,1,0.08)
+								: root.hover(0.08)
 							border.color: nextGifMa.containsMouse
 								? Qt.rgba(root.walColor5.r, root.walColor5.g, root.walColor5.b, 0.4)
-								: Qt.rgba(1,1,1,0.05)
+								: root.hover(0.05)
 							border.width: 1
 							opacity: musicPanel.gifFiles.length > 1 ? 1.0 : 0.3
 							Behavior on color { ColorAnimation { duration: 150 } }
@@ -1268,8 +1378,8 @@ PanelWindow {
 							Layout.preferredHeight: 32
 							radius: 8
 							color: {
-								if (musicPanel.isApplyingGif) return Qt.rgba(1,1,1,0.03)
-								if (musicPanel.previewGifIndex === musicPanel.currentGifIndex) return Qt.rgba(1,1,1,0.05)
+								if (musicPanel.isApplyingGif) return root.hover(0.03)
+								if (musicPanel.previewGifIndex === musicPanel.currentGifIndex) return root.hover(0.05)
 								return applyGifMa.pressed
 									? root.walColor5
 									: applyGifMa.containsMouse
@@ -1277,8 +1387,8 @@ PanelWindow {
 										: Qt.rgba(root.walColor5.r, root.walColor5.g, root.walColor5.b, 0.18)
 							}
 							border.color: {
-								if (musicPanel.isApplyingGif) return Qt.rgba(1,1,1,0.05)
-								if (musicPanel.previewGifIndex === musicPanel.currentGifIndex) return Qt.rgba(1,1,1,0.08)
+								if (musicPanel.isApplyingGif) return root.hover(0.05)
+								if (musicPanel.previewGifIndex === musicPanel.currentGifIndex) return root.hover(0.08)
 								return applyGifMa.containsMouse ? root.walColor5 : Qt.rgba(root.walColor5.r, root.walColor5.g, root.walColor5.b, 0.4)
 							}
 							border.width: 1
@@ -1356,7 +1466,7 @@ PanelWindow {
 						Layout.fillWidth: true
 						height: 22
 						radius: 6
-						color: Qt.rgba(0,0,0,0.2)
+						color: root.card(0.2)
 						RowLayout {
 							anchors.fill: parent
 							anchors.leftMargin: 10

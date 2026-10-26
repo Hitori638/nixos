@@ -61,10 +61,6 @@ hl.window_rule({ match = { class = "^(obsidian)$" }, suppress_event = "activate"
 -- Start Spotify in workspace 3
 hl.window_rule({ match = { title = "^(Spotify( Premium)?)$" }, workspace = "3 silent" })
 
--- TickTick in workspace 4
-hl.window_rule({ match = { class = "^(ticktick|TickTick)$" }, workspace = "10 silent" })
-hl.window_rule({ match = { class = "^(ticktick)$" }, suppress_event = "activate" })
-
 -- Fix XWayland apps
 hl.window_rule({ match = { xwayland = true }, rounding = 0 })
 hl.window_rule({
@@ -114,3 +110,15 @@ hl.window_rule({ match = { class = "^(pomodoro-bomb)$" }, move = { "(monitor_w-w
 hl.window_rule({ match = { class = "^(pomodoro-bomb)$" }, no_shadow = true })
 hl.window_rule({ match = { class = "^(pomodoro-bomb)$" }, no_blur = true })
 hl.window_rule({ match = { class = "^(pomodoro-bomb)$" }, border_size = 0 })
+-- Pomodoro blast overlay — separate process/class, full screen, no chrome
+hl.window_rule({ match = { class = "^(pomodoro-bomb-blast)$" }, float = true })
+hl.window_rule({ match = { class = "^(pomodoro-bomb-blast)$" }, no_shadow = true })
+hl.window_rule({ match = { class = "^(pomodoro-bomb-blast)$" }, no_blur = true })
+hl.window_rule({ match = { class = "^(pomodoro-bomb-blast)$" }, border_size = 0 })
+-- Pomodoro blast overlay — separate process/class, forced to full monitor, no chrome
+hl.window_rule({ match = { class = "^(pomodoro-bomb-blast)$" }, float = true })
+hl.window_rule({ match = { class = "^(pomodoro-bomb-blast)$" }, size = "monitor_w monitor_h" })
+hl.window_rule({ match = { class = "^(pomodoro-bomb-blast)$" }, move = "0 0" })
+hl.window_rule({ match = { class = "^(pomodoro-bomb-blast)$" }, no_shadow = true })
+hl.window_rule({ match = { class = "^(pomodoro-bomb-blast)$" }, no_blur = true })
+hl.window_rule({ match = { class = "^(pomodoro-bomb-blast)$" }, border_size = 0 })

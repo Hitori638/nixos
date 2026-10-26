@@ -1,462 +1,356 @@
 # nixos-dotfiles
 
-A NixOS desktop built on **Hyprland + Quickshell** — fully declarative system config via NixOS flakes, user config via Home Manager, pywal-driven live theming, and a custom QML shell with panels for media, apps, wallpapers, anime/manga/movies, clipboard, notifications, calendar, clock, wifi, and bluetooth.
-
-> `~/nixos-dotfiles/` is symlinked to `~/.config/` — all app configs live under `config/` and are wired into place by Home Manager via `xdg.configFile` with `mkOutOfStoreSymlink`.
+A NixOS desktop built around **Hyprland** (configured in Lua) and a hand-written **Quickshell** shell. The system and user environment are declared with flakes and Home Manager. Every app config under `config/` is live-symlinked into `~/.config`, so editing it in the repo applies immediately — no rebuild.
 
 <div align="center">
 
-![NixOS](https://img.shields.io/badge/NixOS-25.11-5277C3?style=flat&logo=nixos)
-![Hyprland](https://img.shields.io/badge/Hyprland-unstable-58E1FF?style=flat)
-![Quickshell](https://img.shields.io/badge/Quickshell-git-CBA6F7?style=flat)
+![NixOS](https://img.shields.io/badge/NixOS-26.05-5277C3?style=flat&logo=nixos&logoColor=white)
+![Hyprland](https://img.shields.io/badge/Hyprland-unstable%20·%20Lua-58E1FF?style=flat)
+![Quickshell](https://img.shields.io/badge/Quickshell-git-F5C2E7?style=flat)
+![Theme](https://img.shields.io/badge/Catppuccin-Mocha%20Pink-F5C2E7?style=flat)
 ![License](https://img.shields.io/badge/License-MIT-A6E3A1?style=flat)
 
 </div>
 
 ---
 
+## Contents
+
+- [Stack](#stack)
+- [Layout](#layout)
+- [The bar](#the-bar)
+- [Panels](#panels)
+- [Lyrics & subtitles](#lyrics--subtitles)
+- [Pomodoro & focus mode](#pomodoro--focus-mode)
+- [Theming](#theming)
+- [Hyprland](#hyprland)
+- [Services](#services)
+- [Keybinds](#keybinds)
+- [IPC](#ipc)
+- [Install](#install)
+- [Day-to-day](#day-to-day)
+- [Notes](#notes)
+
+---
+
 ## Stack
 
-| Component       | Choice                                                         |
-| --------------- | -------------------------------------------------------------- |
-| OS              | NixOS (nixos-25.11 stable + unstable overlay)                  |
-| WM              | Hyprland (nixpkgs-unstable)                                    |
-| Shell / Bar     | Quickshell (QML, upstream git flake)                           |
-| Terminal        | Kitty                                                          |
-| Editor          | Neovim (lazy.nvim)                                             |
-| File Manager    | Yazi + Thunar                                                  |
-| Notifications   | Custom Python DBus daemon → Quickshell                         |
-| Theming         | pywal (wallpaper → colors.json → live QML)                     |
-| Music           | MPD + rmpc / Spicetify (Spotify)                               |
-| Launcher        | Quickshell LauncherPanel                                       |
-| Display Manager | SDDM (Catppuccin Mocha Mauve)                                  |
-| Fonts           | JetBrainsMono Nerd Font                                        |
-| Colorscheme     | Catppuccin Mocha (static) + pywal (dynamic)                    |
-| Browsers        | Zen Browser (default) + Brave                                  |
-| Media           | Jellyfin + MPV + Spotify (Spicetify) + rmpc                    |
+| Area          | Choice                                                                  |
+| ------------- | ----------------------------------------------------------------------- |
+| OS            | NixOS `nixos-26.05`, with `nixos-unstable` available as `pkgs-unstable` |
+| Compositor    | Hyprland (unstable), Lua config                                         |
+| Shell / bar   | Quickshell (upstream git flake), custom QML                             |
+| Login / boot  | SDDM + Plymouth (Catppuccin), systemd-boot, latest kernel               |
+| GPU           | AMD iGPU + NVIDIA (open driver, PRIME offload)                          |
+| Terminal      | Kitty + Starship                                                        |
+| Editors       | Neovim (lazy.nvim), VS Code, Arduino IDE, PlatformIO                    |
+| Files         | Thunar + Yazi                                                           |
+| Browsers      | Zen (default, flake) + Brave                                            |
+| Music / video | MPD + rmpc, Spotify (Spicetify), Kopuz, mpv (MPRIS)                     |
+| Media server  | Jellyfin, Transmission, Honne (Podman)                                  |
+| Notifications | own Python D-Bus daemon → Quickshell                                    |
+| Audio         | PipeWire + WirePlumber                                                  |
+| DNS           | systemd-resolved, DNS-over-TLS, DNSSEC                                  |
+| Remote        | Tailscale, NFS                                                          |
+| AI            | opencode (unstable)                                                     |
+| Font          | JetBrainsMono Nerd Font                                                 |
+
+### Flake inputs
+
+| Input              | Source                                              |
+| ------------------ | --------------------------------------------------- |
+| `nixpkgs`          | `github:NixOS/nixpkgs/nixos-26.05`                  |
+| `nixpkgs-unstable` | `github:NixOS/nixpkgs/nixos-unstable`               |
+| `home-manager`     | `github:nix-community/home-manager/release-26.05`   |
+| `zen-browser`      | `github:0xc000022070/zen-browser-flake`             |
+| `quickshell`       | `git+https://git.outfoxxed.me/outfoxxed/quickshell` |
+| `spicetify-nix`    | `github:Gerg-L/spicetify-nix`                       |
+| `kopuz`            | `github:temidaradev/kopuz` (+ `kopuz.cachix.org`)   |
 
 ---
 
-## Flake Inputs
-
-| Input              | Source                                                          |
-| ------------------ | --------------------------------------------------------------- |
-| `nixpkgs`          | `github:NixOS/nixpkgs/nixos-25.11`                              |
-| `nixpkgs-unstable` | `github:NixOS/nixpkgs/nixos-unstable`                           |
-| `home-manager`     | `github:nix-community/home-manager/release-25.11`               |
-| `zen-browser`      | `github:0xc000022070/zen-browser-flake`                         |
-| `quickshell`       | `git+https://git.outfoxxed.me/outfoxxed/quickshell` (upstream)  |
-| `spicetify-nix`    | `github:Gerg-L/spicetify-nix`                                   |
-
----
-
-## Directory Structure
+## Layout
 
 ```
-nixos-dotfiles/                         ← symlinked as ~/.config/
-│
-├── configuration.nix                   NixOS system config
-├── home.nix                            Home Manager user config
-├── flake.nix                           Flake inputs and outputs
-├── flake.lock
+nixos-dotfiles/
+├── flake.nix / flake.lock
+├── configuration.nix            system entry → modules/system/*
+├── home.nix                     Home Manager entry → modules/home/*
 ├── hardware-configuration.nix
+├── pkgs/pomodoro-bomb/          the original PySide6 dynamite timer (own derivation)
 ├── modules/
-│   ├── home/                           Home Manager modules
-│   │   ├── browsers/
-│   │   │   └── default.nix             Zen Browser + Brave
-│   │   ├── desktop/
-│   │   │   ├── default.nix             Imports all desktop sub-modules
-│   │   │   ├── hyprland.nix            Wayland WM + desktop packages
-│   │   │   ├── gtk.nix                 GTK theme (adw-gtk3-dark)
-│   │   │   ├── qt.nix                  Qt theme (adwaita-dark)
-│   │   │   └── cursor.nix              Cursor + dconf dark mode
-│   │   ├── dev/
-│   │   │   ├── default.nix             Imports all dev sub-modules
-│   │   │   ├── git.nix                 Git config
-│   │   │   ├── ssh.nix                 SSH config + GitHub host
-│   │   │   ├── editors.nix             Neovim + LSPs + formatters
-│   │   │   ├── languages.nix           Node, GCC, Rustup
-│   │   │   └── tools.nix               ripgrep, fzf, jq, tmux, htop…
-│   │   ├── media/
-│   │   │   ├── default.nix             Imports all media sub-modules
-│   │   │   ├── spotify.nix             Spicetify (Catppuccin Mocha)
-│   │   │   ├── mpv.nix                 MPV + MPRIS script
-│   │   │   ├── mpd-client.nix          rmpc, mpc, cava, playerctl, mpd-mpris
-│   │   │   └── apps.nix                vesktop, obsidian, telegram, quickshell…
-│   │   ├── shell/
-│   │   │   ├── default.nix             Imports all shell sub-modules
-│   │   │   ├── bash.nix                Bash + aliases + FZF colors
-│   │   │   └── starship.nix            Starship prompt
-│   │   ├── packages.nix                General CLI tools (yazi, eza, pywal…)
-│   │   └── symlinks.nix                xdg.configFile mkOutOfStoreSymlink wiring
-│   │
-│   └── system/                         NixOS system modules
-│       ├── boot/
-│       │   ├── default.nix             Imports boot sub-modules
-│       │   ├── plymouth.nix            Plymouth (Catppuccin Mocha) + quiet boot
-│       │   └── kernel.nix              Kernel, blacklist nouveau, kvm-amd
-│       ├── hardware/
-│       │   ├── default.nix             Imports hardware sub-modules
-│       │   ├── gpu.nix                 NVIDIA modesetting
-│       │   ├── bluetooth.nix           Bluetooth + power on boot
-│       │   └── filesystem.nix          Extra mount points (SSD)
-│       ├── display/
-│       │   ├── default.nix             Imports display sub-modules
-│       │   ├── hyprland.nix            programs.hyprland + appimage + nix-ld + vbox
-│       │   ├── portal.nix              xdg-desktop-portal (GTK + Hyprland)
-│       │   └── xserver.nix             Xserver + video drivers + repeat rate
-│       ├── networking/
-│       │   ├── default.nix             Imports networking sub-modules
-│       │   ├── base.nix                Hostname, NetworkManager, timezone
-│       │   ├── dns.nix                 systemd-resolved, DoT (Cloudflare + Quad9)
-│       │   └── wireguard.nix           System-wide wg-quick ProtonVPN interface
-│       ├── services/
-│       │   ├── default.nix             Imports services sub-modules
-│       │   ├── audio.nix               Pipewire + WirePlumber Bluetooth priority
-│       │   ├── display-manager.nix     SDDM (Catppuccin Mocha Mauve)
-│       │   ├── jellyfin.nix            Jellyfin media server
-│       │   ├── media.nix               MPD system service + PipeWire + FIFO output
-│       │   ├── misc.nix                blueman, gvfs, dbus, udisks2, ssh-agent, dconf
-│       │   └── udev.nix                udev rules (MTP)
-│       ├── fonts.nix                   JetBrainsMono NF, Noto fonts
-│       ├── nix.nix                     GC, optimise, binary caches
-│       ├── packages.nix                System-wide packages (wayland tools, Thunar…)
-│       ├── security.nix                rtkit, polkit, pam hyprlock
-│       ├── users.nix                   User, groups, sudo rules, session variables
-│       └── vpn.nix                     ProtonVPN netns + Transmission kill-switch
-└── config/                             App configs → symlinked into ~/.config/
-    ├── hypr/
-    │   ├── hyprland.conf               Sources all sub-configs
-    │   ├── hypridle.conf               Idle / lock config
-    │   ├── hyprlock.conf               Lock screen: blurred wallpaper + clock
-    │   └── hyprland/
-    │       ├── env.conf                Wayland env vars
-    │       ├── execs.conf              exec-once: swww, wal, spotify, quickshell…
-    │       ├── general.conf            Gaps, borders, animations, blur, input
-    │       ├── keybinds.conf           All keybindings
-    │       ├── mocha.conf              Catppuccin Mocha color variables
-    │       └── rules.conf              Window/layer rules
-    │
-    ├── quickshell/
-    │   ├── shell.qml                   Root ShellRoot — global state, IPC handlers
-    │   ├── UIState.qml                 Singleton: notifications + DBus daemon bridge
-    │   ├── Colors.qml                  Singleton: reads ~/.cache/wal/colors.json live
-    │   ├── Animations.qml              Singleton: animation duration constants
-    │   │
-    │   ├── components/
-    │   │   ├── Bar.qml                 Top bar: workspaces, clock, media notch (cava),
-    │   │   │                           volume, battery, wifi/bt, tray, clipboard, anime/movies
-    │   │   ├── Dashboard.qml           Right panel: profile, power, battery, CPU/RAM/disk,
-    │   │   │                           volume/brightness sliders, clock
-    │   │   ├── LauncherPanel.qml       Left panel: app launcher (usage-sorted) + wallpaper picker
-    │   │   ├── MusicPanel.qml          Top-center: player controls, seek, gif or vinyl disc,
-    │   │   │                           player selector, gif/vinyl picker
-    │   │   ├── AnimePanel.qml          Left panel: Anime + Manga browse/detail/chapters
-    │   │   │                           (AniList + MangaDex), My Lists, library
-    │   │   ├── MoviesPanel.qml         Right panel: Movies/TV trending/discover/search
-    │   │   │                           (TMDB), watchlist, favorites, My List, saved
-    │   │   ├── WifiPanel.qml           Right panel: wifi toggle + network list + password
-    │   │   ├── BluetoothPanel.qml      Right panel: BT toggle + paired/available devices
-    │   │   ├── CalendarPanel.qml       Left panel: AD/BS calendar (Bikram Sambat built-in)
-    │   │   ├── ClockPanel.qml          Left panel: analog clock + timer + stopwatch + alarm
-    │   │   ├── ClipboardPanel.qml      Right panel: cliphist + emoji picker + kaomoji picker
-    │   │   ├── NotifCenter.qml         Right panel: notification history + DND toggle
-    │   │   └── NotificationPopup.qml   Top-right toast notifications (animated, auto-dismiss)
-    │   │
-    │   ├── services/
-    │   │   ├── Anime.qml               Singleton: anime HTTP client (:5050)
-    │   │   ├── Manga.qml               Singleton: manga HTTP client (:5150)
-    │   │   └── Movies.qml              Singleton: movies HTTP client (:5250)
-    │   │
-    │   ├── scripts/
-    │   │   ├── anime_server.py         Flask-style HTTP server: AniList GQL, SQLite library
-    │   │   ├── manga_server.py         HTTP server: AniList + MangaDex chapters, SQLite
-    │   │   └── movies_server.py        HTTP server: TMDB trending/search/detail, SQLite watchlist
-    │   │
-    │   └── assets/
-    │       ├── get-player.sh           playerctl wrapper: resolves best active player
-    │       ├── notif-daemon.py         DBus org.freedesktop.Notifications service
-    │       ├── timer.wav               Alarm/timer sound
-    │       ├── Vinyl.png               Default vinyl center art
-    │       ├── gifs/                   35+ animated GIFs for the music panel
-    │       └── pfps/                   Profile picture options for the dashboard
-    │
-    ├── nvim/                           Neovim: lazy.nvim + full LSP/cmp/treesitter setup
-    ├── kitty/kitty.conf                Font + 16-color theme
-    ├── mpv/mpv.conf                    Catppuccin colors, ytdl cookies, MPRIS
-    ├── starship/starship.toml          Catppuccin Mocha prompt
-    ├── fastfetch/config.jsonc          Random logo, system info, color circles
-    ├── yazi/theme.toml                 Catppuccin Mocha
-    ├── cava/                           ncurses + raw ASCII configs + GLSL shaders
-    ├── rmpc/                           MPD TUI client: config + theme
-    ├── wal/templates/                  pywal templates (Colors.qml, gtk.css, swaync.css…)
-    └── scripts/                        Wallpaper, recording, dictionary scripts
+│   ├── system/
+│   │   ├── boot/                kernel, plymouth
+│   │   ├── hardware/            nvidia PRIME, bluetooth, /mnt/ssd, i2c
+│   │   ├── display/             hyprland, portals, xserver, appimage, nix-ld, VirtualBox, Podman
+│   │   ├── networking/          NetworkManager, firewall, resolved + DoT
+│   │   ├── services/            pipewire, sddm, jellyfin, mpd, honne, transmission, nfs, tailscale, udev
+│   │   └── fonts.nix  nix.nix  packages.nix  security.nix  users.nix
+│   └── home/
+│       ├── browsers/            zen, brave, mime defaults
+│       ├── desktop/             hyprland pkgs, GTK, Qt, cursor
+│       ├── dev/                 git, ssh, editors, languages, tools, ai
+│       ├── media/               spicetify, mpv, mpd client tools, apps, mime
+│       ├── office/              libreoffice, obsidian, xournal++
+│       ├── shell/               bash aliases, starship
+│       ├── packages.nix
+│       └── symlinks.nix         mkOutOfStoreSymlink: config/* → ~/.config/*
+└── config/
+    ├── hypr/                    hyprland.lua + hyprland/*.lua, hypridle, hyprlock
+    ├── quickshell/              the shell
+    │   ├── shell.qml            global state, palettes, processes, IPC
+    │   ├── UIState.qml / Colors.qml / Animations.qml
+    │   ├── assets/              get-player.sh, notif-daemon.py, lyrics.py, subs.py, gifs …
+    │   ├── state/               saved UI settings (bar, theme, eq, pomodoro …)
+    │   └── components/          Bar, panels, overlays (one file each)
+    ├── scripts/                 record, theme, nightlight, eq, power, screentime-poll …
+    ├── cava/  nvim/  kitty/  mpv/  rmpc/  yazi/  starship/  fastfetch/  vesktop/  wal/
+    └── zen/chrome/              userChrome / userContent
 ```
 
 ---
 
-## Quickshell Panels
+## The bar
 
-Every panel slides in/out with a `NumberAnimation` on its margin. All panels are keyboard-navigable and close on `Escape`.
+Top or bottom, picked from the bar menu (`󰏘` button or `Super+Ctrl+B`). Settings are saved and restored at login.
 
-| Panel             | Trigger              | Position     | Features                                                          |
-| ----------------- | -------------------- | ------------ | ----------------------------------------------------------------- |
-| Launcher          | `Super+D`            | Left         | Usage-sorted app list, search, app icons                          |
-| Wallpaper picker  | `Super+W`            | Left (tab 2) | Thumbnail grid, apply with pywal, current indicator               |
-| Music             | `Super+M`            | Top-center   | Playerctl controls, seek bar, cava visualizer, GIF or vinyl disc  |
-| Dashboard         | `Super+A`            | Right        | Profile pic, power buttons, CPU/RAM/disk rings, vol/bright sliders |
-| Notification center | `Super+N`          | Right        | History, DND toggle, per-notification dismiss                     |
-| Clipboard         | `Super+C`            | Right        | cliphist history, image thumbnails, emoji picker, kaomoji picker  |
-| Wifi              | Bar → wifi notch LMB | Right        | Toggle, network list, password entry, disconnect                  |
-| Bluetooth         | Bar → wifi notch RMB | Right        | Toggle, paired devices, scan for new, connect/disconnect/forget   |
-| Calendar          | Bar → clock RMB      | Left         | AD calendar + BS (Bikram Sambat) with full BS↔AD conversion       |
-| Clock             | Bar → clock LMB      | Left         | Analog clock, countdown timer, stopwatch with laps, alarms        |
-| Anime / Manga     | Bar → anime notch RMB | Left        | AniList browse/search/detail, MangaDex chapters, local library    |
-| Movies / TV       | Bar → anime notch LMB | Right       | TMDB trending/discover/search, watchlist, favorites, My List      |
+| Setting      | Options                                                                         |
+| ------------ | ------------------------------------------------------------------------------- |
+| Position     | Top · Bottom (`Super+Shift+B` flips)                                            |
+| Visibility   | Always · Auto-hide (touch the edge) · Hidden (`Super+B` toggles)                |
+| Style        | **Default** · **i3bar** · **Enjoy** (Default without the work components) |
+| Layout       | Attached · Floating (equal gap on every side, square corners)                   |
+| Transparency | Opaque · Transparent · Blur                                                     |
+| Theme        | Catppuccin · Rosé Pine · Nord · Dracula · Gruvbox · Tokyo Night · Monochrome, light/dark |
 
----
+### Default style, left to right
 
-## Theming System
+| Component        | Left click                 | Right click         | Other                              |
+| ---------------- | -------------------------- | ------------------- | ---------------------------------- |
+| NixOS logo       | App launcher               | Wallpaper picker    |                                    |
+| Clock / date     | Clock panel                | Calendar            |                                    |
+| Workspaces       | Switch                     | Workspace overview  | Scroll to cycle                    |
+| Music            | Play / pause               | Music panel         | Middle: next · scroll: next / prev |
+| Lyrics ticker    | —                          | —                   | see [Lyrics & subtitles](#lyrics--subtitles) |
+| Battery          | Screen time                |                     | animated while charging            |
+| Volume           | Mute                       | Equalizer           | Scroll ±5 %                        |
+| Network          | Wi-Fi panel                | Bluetooth panel     |                                    |
+| Tray             | Activate                   | Menu                |                                    |
+| Pomodoro bomb    | Pomodoro panel             | Start / pause       | Middle: reset · scroll: minutes    |
+| Recorder `󰑋`     | Recorder menu / stop       | Recorder menu       | red timer while recording          |
+| Sticky notes `󰎚` | Show / hide notes          |                     |                                    |
+| Clipboard        | Clipboard panel            | Sticky notes        |                                    |
+| Bar menu `󰏘`     | Bar & theme menu           | Next theme          |                                    |
+| Dashboard        | Dashboard                  | Notification center |                                    |
 
-Theming is driven by **pywal**. On wallpaper change:
+While something plays, a mirrored cava visualizer runs behind the whole bar (attached layout).
 
-1. `swww img <path> --transition-type any --transition-duration 2`
-2. `wal -i <path> -n -q` → regenerates `~/.cache/wal/colors.json` and all templates
-3. `colors-gtk.css` symlinked into `~/.config/gtk-{3,4}.0/gtk.css`
-4. Wallpaper blurred with ImageMagick → `~/wallpapers/.current-blurred.jpg` (for hyprlock)
-5. `Colors.qml` re-reads `colors.json` live — all `walColor*` properties update instantly
+### i3bar style
 
-The `config/wal/templates/` directory contains templates rendered on each `wal` run, including `Colors.qml`, `colors-gtk.css`, `colors-swaync.css`, `fuzzel.ini`, and more.
+A look-alike of i3bar + i3status: black bar, monospace text, i3 workspace buttons (blue focused, grey others, red urgent), and a status line with grey separators and i3status colours (green good, yellow degraded, red bad):
 
----
-
-## Media / Entertainment Backends
-
-Three Python HTTP servers start automatically via Quickshell `Process` objects and restart on exit.
-
-| Server            | Port | Virtualenv       | Backend              | Features                                                    |
-| ----------------- | ---- | ---------------- | -------------------- | ----------------------------------------------------------- |
-| `anime_server.py` | 5050 | `~/ani-env/`     | AniList GraphQL      | Browse, search, episodes, SQLite library, AniList list sync |
-| `manga_server.py` | 5150 | `~/.venv/manga/` | AniList + MangaDex   | Browse, chapters/pages, SQLite library, favorites           |
-| `movies_server.py`| 5250 | `~/.venv/movies/`| TMDB                 | Trending, discover, search, watchlist, favorites, SQLite    |
-
-**One-time venv setup** (after first rebuild):
-
-```bash
-python3 -m venv ~/ani-env && ~/ani-env/bin/pip install requests
-python3 -m venv ~/.venv/manga && ~/.venv/manga/bin/pip install requests
-python3 -m venv ~/.venv/movies && ~/.venv/movies/bin/pip install requests
+```
+ 1 2 3 | ♪ track | POMO 18:20 | REC | W: (73% at ssid) | BT: on | E: down | /: 120 GiB | load: 0.4 | MEM: 4.1 GiB | VOL: 45% | BAT 85% | 2026-10-26 13:10:06 | tray | CLIP | DASH | ≡
 ```
 
-**API tokens** (stored in plaintext):
-
-```bash
-echo 'YOUR_TOKEN' > ~/.config/quickshell/anilist_token   # optional — enables list writes
-echo 'YOUR_TOKEN' > ~/.config/quickshell/tmdb_token       # required for movies
-echo 'YOUR_ID'    > ~/.config/quickshell/tmdb_account_id  # optional — enables watchlist sync
-```
+Every block keeps its click / scroll actions. `≡` or right-click on empty bar space opens the bar menu. Clock and calendar panels open on the right in this style.
 
 ---
 
-## Notification System
+## Panels
 
-A custom Python DBus daemon (`assets/notif-daemon.py`) registers as `org.freedesktop.Notifications` and pipes `nid|app|summary|body` to stdout. `UIState.qml` reads this via a Quickshell `Process` + `SplitParser`, pushes entries to the notification list, and emits a signal that both the toast popup and notification center listen to. The daemon auto-restarts on exit.
+All panels slide in from their edge, take keyboard focus, and close with `Esc`.
+
+- **Dashboard** — avatar, power row (poweroff / reboot / lock / suspend / logout), night light (scroll for 1500–6500 K) and light/dark toggles, battery, CPU / RAM / disk rings, volume and brightness sliders, clock.
+- **Launcher** — usage-sorted apps, plus a wallpaper tab.
+- **Music** — title, artist, seek bar, controls on a live cava backdrop; dancing GIF or draggable vinyl; player picker (Auto or a pinned MPRIS player).
+- **Sticky notes** — a floating note you **drag anywhere** by its header (position remembered). Tabs, six paper colours, autosave to `~/.local/share/quickshell/notes.json` (outside the repo). Stays open while you use other panels. `Ctrl+N` new · `Ctrl+W` delete · `Ctrl+Tab` switch.
+- **Screen recorder** — full screen, a specific monitor, or a `slurp` region. Files go to `~/Videos/screen-recordings/`. Also `config/scripts/record.sh full|output NAME|region|stop|toggle|status`.
+- **Clipboard** — cliphist history with image thumbnails, emoji and kaomoji search.
+- **Notification center** — 50-item history and Do Not Disturb.
+- **Wi-Fi / Bluetooth** — connect with password; pair / connect / forget.
+- **Calendar** — AD and Bikram Sambat (BS 2000–2090, full BS ↔ AD conversion).
+- **Clock** — analog clock, timer, stopwatch with laps, alarms.
+- **Equalizer** — 10 bands (32 Hz – 16 kHz, ±12 dB), presets, response curve; runs a PipeWire filter-chain (`scripts/eq.sh`).
+- **Workspace overview** — every occupied workspace with a live mini-map of its windows; click to jump, `1`–`9` to switch.
+- **Screen time** — today's total, hourly chart, 7-day view with **previous-week navigation** (arrows, or the `this week` / `today` button to jump back), most-used apps. Counts time at the computer: pauses after 2 min without input or when locked, but **keeps counting while a video plays** (browser, mpv, VLC, Jellyfin…). Music alone doesn't count when you're idle. Days split at midnight. Data in `~/.local/share/quickshell/screentime.json`, 35 days kept.
+- **Bar menu** — every bar setting from the table above, plus theme previews.
 
 ---
 
-## Neovim
+## Lyrics & subtitles
 
-Plugin manager: **lazy.nvim** (auto-bootstrapped from `init.lua`).
+The music sits on the left of the bar; the free space up to the battery shows a **ticker** that keeps scrolling right → left, synced to playback. The line being sung/spoken is highlighted (pink for lyrics, teal for subtitles), upcoming lines are dimmed on the right, past ones fade out on the left. It follows pause and seek.
 
-| Plugin                  | Purpose                                          |
-| ----------------------- | ------------------------------------------------ |
-| `tokyonight.nvim`       | Colorscheme (storm, transparent)                 |
-| `nvim-lspconfig`        | LSP: rust_analyzer (clippy), lua_ls              |
-| `nvim-cmp`              | Completion (LSP + LuaSnip + path + buffer)       |
-| `conform.nvim`          | Format on save (alejandra, stylua, prettier)     |
-| `telescope.nvim`        | Fuzzy finder + LSP navigation                    |
-| `lualine.nvim`          | Statusline (tokyonight theme)                    |
-| `snacks.nvim`           | Dashboard (ASCII art)                            |
-| `nvim-treesitter`       | Syntax + indent                                  |
-| `harpoon` (v2)          | Quick file marks (up to 5 slots)                 |
-| `gitsigns.nvim`         | Git diff in gutter                               |
-| `git-conflict.nvim`     | Conflict resolution helpers                      |
-| `nvim-autopairs`        | Auto bracket/quote pairs                         |
-| `mini.nvim`             | mini.ai text objects + mini.surround             |
-| `neo-tree.nvim`         | File tree (`<leader>n`)                          |
-| `oil.nvim`              | Directory editing as buffer (`<leader>o`)        |
-| `yazi.nvim`             | Yazi integration (`<leader>y`)                   |
-| `nvim-silicon`          | Code screenshot to clipboard (`<leader>sc`)      |
-| `tabout.nvim`           | Tab to jump out of brackets                      |
-| `nvim-colorizer.lua`    | Inline color highlighting                        |
-| `which-key.nvim`        | Keybind popup helper                             |
-| `markdown-preview.nvim` | Live browser preview                             |
-| `Comment.nvim`          | Smart commenting                                 |
+| Playing                                       | Source                                                            | Speed       |
+| --------------------------------------------- | ----------------------------------------------------------------- | ----------- |
+| Songs — Spotify, YouTube (Music), mpv, mpd …  | synced lyrics from [LRCLIB](https://lrclib.net) (`assets/lyrics.py`) | ~1 s     |
+| Other YouTube videos in the browser           | the video's own captions via yt-dlp (`assets/subs.py`)            | ~20–30 s    |
+| Netflix / anime sites / local files           | nothing — those don't expose subtitles                            |             |
+
+`subs.py` finds the video by its exact title, uses your Zen login cookies, and tries YouTube clients that don't need a PO token (`web_embedded`, `tv`, `android_vr`) when the default one hides captions. It prefers captions made from the video's own audio, joins auto-caption word fragments into readable chunks, and retries on rate limits.
+
+- Language: the video's own language by default. `echo en > ~/.config/quickshell/subs-lang` prefers English (YouTube translation if needed); delete the file to go back.
+- Cache: `~/.cache/quickshell/{lyrics,subs}/` — rewatches are instant.
+- Debug: `SUBS_DEBUG=1 python3 ~/.config/quickshell/assets/subs.py x "<title>" "<channel>" <seconds>`
+
+---
+
+## Pomodoro & focus mode
+
+The pomodoro lives in Quickshell: bomb notch with countdown and burning fuse, a panel with the dynamite, start / pause / reset / skip, focus / break / long-break steppers and session dots. When a phase ends: notification, explosion sound and a click-through fullscreen BOOM. Settings are saved in `state/pomodoro`.
+
+**Focus mode** kicks in automatically while a *focus* session is running:
+
+- the bar is fully hidden — no edge peek, no panels bringing it back
+- Do Not Disturb on (your previous setting returns afterwards; the pomodoro's own alerts still come through)
+- a small click-through timer pill at the top with a progress line
+- optional jump to a dedicated workspace — `pomoZenWs` in `shell.qml` (`0` = stay where you are)
+
+Pausing, stopping or reaching the break ends focus mode. `qs ipc call pomozen on|off|toggle` enables / disables it (resets to on at restart).
+
+---
+
+## Theming
+
+Colours come from official palettes defined once in `shell.qml` (`palettes`, exposed as `root.wal*`), mirrored by `Colors.qml`. `root.card(a)` / `root.hover(a)` give insets and hovers that work in both light and dark. With Catppuccin, both accents are pink (`#f5c2e7`), so the shell doesn't drift into mauve.
+
+The rest of the desktop is Catppuccin Mocha Pink: GTK, SDDM, Plymouth, Spicetify, Zen, Starship, Yazi, rmpc, mpv, fzf. Hyprland runs `wal --theme catppuccin-mocha-pink` at startup for the pywal templates. The light/dark toggle also flips the desktop colour-scheme hint and the GTK3 theme via `config/scripts/theme.sh`.
+
+Wallpapers live in `~/wallpapers/`. Picking one runs `awww img` with a transition, links it as `~/wallpapers/current` and writes a blurred copy for hyprlock. `Super+Shift+W` plays a shuffled queue.
+
+---
+
+## Hyprland
+
+`hyprland.lua` requires `monitors`, `env`, `execs`, `general`, `mocha`, `animations`, `gestures`, `keybinds` and `rules` from `config/hypr/hyprland/`.
+
+- **Startup** — ssh-add, `awww-daemon`, pywal, night light restore, hypridle, cliphist watchers, polkit agent, Quickshell.
+- **Idle** — dim at 4 min, lock at 8 min, screen off at 8.5 min.
+- **Gestures** — 3-finger vertical: workspaces · horizontal: scroll-move · 4-finger pinch: fullscreen.
+- **Rules** — Zen → 1, Obsidian → 2, Spotify → 3, floating PiP, idle inhibit for video.
+
+---
+
+## Services
+
+| What          | Where                     | Notes                                                       |
+| ------------- | ------------------------- | ----------------------------------------------------------- |
+| Jellyfin      | `services/jellyfin.nix`   | runs as `alpha`, waits for `/mnt/ssd`, library scan every 15 min (`/etc/jellyfin-api-key`) |
+| Transmission  | `services/transmission.nix` | web UI on `:9091` — allow LAN / Tailscale with `rpc-whitelist` |
+| MPD           | `services/media.nix`      | PipeWire output + `/tmp/mpd.fifo` for visualizers            |
+| Honne         | `services/media.nix`      | Podman container on `:7417`, env in `/etc/honne.env`         |
+| Tailscale     | `services/tailscale.nix`  | MagicDNS (`100.100.100.100`)                                 |
+| VirtualBox / Podman / nix-ld | `display/hyprland.nix` | extension pack, `dockerCompat`, CUDA libs for foreign binaries |
+| Nix           | `nix.nix`                 | weekly GC (> 7 days), auto-optimise, Hyprland / nix-community / kopuz caches |
 
 ---
 
 ## Keybinds
 
-| Key                       | Action                              |
-| ------------------------- | ----------------------------------- |
-| `Super + Return`          | Kitty terminal                      |
-| `Super + D`               | Toggle app launcher                 |
-| `Super + A`               | Toggle dashboard                    |
-| `Super + M`               | Toggle music panel                  |
-| `Super + W`               | Toggle wallpaper picker             |
-| `Super + Shift + W`       | Random wallpaper                    |
-| `Super + Shift + P`       | Random personal wallpaper           |
-| `Super + N`               | Toggle notification center          |
-| `Super + C`               | Toggle clipboard panel              |
-| `Super + X`               | Lock screen (hyprlock)              |
-| `Super + Q`               | Kill active window                  |
-| `Super + F`               | Fullscreen                          |
-| `Super + T`               | Toggle floating                     |
-| `Super + H/J/K/L`         | Move focus                          |
-| `Super + Shift + H/J/K/L` | Move window                         |
-| `Super + Ctrl + H/J/K/L`  | Resize window                       |
-| `Super + 1–0`             | Switch workspace                    |
-| `Super + Shift + 1–0`     | Move window to workspace            |
-| `Super + S`               | Screenshot (grim + slurp)           |
-| `Super + R`               | Record external screen              |
-| `Super + Alt + R`         | Record laptop screen                |
-| `Super + Ctrl + R`        | Record region                       |
-| `Super + Shift + E`       | Exit Hyprland                       |
-| `Super + LMB drag`        | Move window                         |
-| `Super + RMB drag`        | Resize window                       |
-| `XF86Audio*`              | Volume up / down / mute             |
-| Bar media notch LMB       | Play / pause                        |
-| Bar media notch RMB       | Toggle music panel                  |
-| Bar media notch MMB       | Next track                          |
-| Bar media notch scroll    | Next / previous track               |
-| Bar wifi notch LMB        | Toggle wifi panel                   |
-| Bar wifi notch RMB        | Toggle bluetooth panel              |
-| Bar clock LMB             | Toggle clock panel                  |
-| Bar clock RMB             | Toggle calendar panel               |
-| Bar apps notch LMB        | Toggle launcher                     |
-| Bar apps notch RMB        | Toggle wallpaper picker             |
-| Bar dashboard notch LMB   | Toggle dashboard                    |
-| Bar dashboard notch RMB   | Toggle notification center          |
-| Bar anime/movie notch LMB | Toggle movies panel                 |
-| Bar anime/movie notch RMB | Toggle anime panel                  |
+| Keys                                   | Action                              |
+| -------------------------------------- | ----------------------------------- |
+| `Super+Return`                         | Kitty                               |
+| `Super+D` / `Super+W`                  | Launcher / wallpaper picker         |
+| `Super+Shift+W`                        | Next shuffled wallpaper             |
+| `Super+A`                              | Dashboard                           |
+| `Super+M`                              | Music panel                         |
+| `Super+N`                              | Notification center                 |
+| `Super+C`                              | Clipboard                           |
+| `Super+Shift+N`                        | Sticky notes                        |
+| `Super+P`                              | Pomodoro panel                      |
+| `Super+Shift+P`                        | Pomodoro pause / resume             |
+| `Super+B` / `Super+Shift+B` / `Super+Ctrl+B` | Bar show-hide / flip top-bottom / bar menu |
+| `Super+Shift+R`                        | Screen recorder menu                |
+| `Super+R` / `Super+Alt+R` / `Super+Ctrl+R` | Record external / laptop / region |
+| `Super+Tab`                            | Workspace overview                  |
+| `Super+S`                              | Region screenshot                   |
+| `Super+X`                              | Lock                                |
+| `Super+Q` / `F` / `T`                  | Close / fullscreen / float          |
+| `Super+H J K L` (arrows, `[` `]`)      | Focus                               |
+| `Super+Shift+H J K L`                  | Move window                         |
+| `Super+Ctrl+H J K L`                   | Resize                              |
+| `Super+1…0` / `Super+Shift+1…0`        | Workspace / move window there       |
+| `Super+Shift/Alt+scroll`               | Move window to next / prev workspace |
+| `Super+LMB` / `Super+RMB`              | Drag / resize                       |
+| `Super+Shift+E`                        | Exit Hyprland                       |
 
 ---
 
-## Quickshell IPC
+## IPC
 
 ```bash
-qs ipc call launcher      toggle
-qs ipc call dashboard     toggle
-qs ipc call music         toggle
-qs ipc call wallpaper     toggle
-qs ipc call wifi          toggle
-qs ipc call bluetooth     toggle
-qs ipc call notifcenter   toggle
-qs ipc call calendar      toggle
-qs ipc call clipboard     toggle
-qs ipc call anime         toggle
-qs ipc call movies        toggle
+qs ipc call launcher | wallpaper | dashboard | music | notifcenter | clipboard toggle
+qs ipc call calendar | wifi | bluetooth | notes | overview | eq | screentime toggle
+qs ipc call record       menu | full | region | stop | toggle
+qs ipc call pomodoro     toggle | startPause | reset | skip
+qs ipc call pomozen      on | off | toggle
+qs ipc call bar          toggle | autohide | cycle | menu | nextstyle | floating
+qs ipc call bar          style <default|i3|enjoy> | position <top|bottom> | mode <shown|auto|hidden> | transparency <opaque|transparent|blur>
+qs ipc call theme        toggle | next | set <mocha|rosepine|nord|dracula|gruvbox|tokyonight|mono>
+qs ipc call nightlight   toggle
 qs ipc call randomwallpaper apply "<path>"
 ```
 
 ---
 
-## Aliases
+## Install
+
+Needs NixOS with flakes. The config assumes the user `alpha`; change it in `flake.nix`, `home.nix`, `modules/system/users.nix`, the MPD / Jellyfin services, `execs.lua` and the SSH config if yours differs.
 
 ```bash
-nrs        # sudo nixos-rebuild switch --flake ~/nixos-dotfiles#nixos
-nuprs      # nix flake update && nrs
-gnrs       # git add . && git commit -m "update" && nrs
-ff         # fastfetch with random logo from ~/.config/fastfetch/logo/
-gf         # fastfetch with random logo from ~/Pictures/Dump_fastfetch_logo/
-ls         # eza --icons
-ll         # eza -l --icons
-btw        # echo "i use nixos, btw"
-webp2png   # batch convert all *.webp → *.png in current directory
-zip2cbz    # batch rename all *.zip → *.cbz in current directory
-```
-
----
-
-## Installation
-
-### Prerequisites
-
-- NixOS with flakes enabled
-- NVIDIA or AMD GPU (config has both — adjust `hardware.nvidia` and `videoDrivers` as needed)
-
-### Steps
-
-```bash
-# 1. Clone
 git clone https://github.com/robbsbro69/nixos-dotfiles ~/nixos-dotfiles
+cd ~/nixos-dotfiles
+sudo nixos-generate-config --show-hardware-config > hardware-configuration.nix
 
-# 2. Symlink as ~/.config
-ln -sf ~/nixos-dotfiles ~/.config
+# check before the first build:
+#   modules/system/hardware/gpu.nix          PRIME bus IDs (lspci) or drop the nvidia block
+#   modules/system/display/xserver.nix       videoDrivers
+#   modules/system/hardware/filesystem.nix   /mnt/ssd UUID (lsblk -f) or remove it
+#   modules/system/users.nix + hyprland/env.lua   AQ_DRM_DEVICES (ls /dev/dri)
+#   config/hypr/hyprland/monitors.lua        output names (hyprctl monitors)
+#   modules/system/networking/base.nix       time zone
 
-# 3. Generate hardware config
-sudo nixos-generate-config --show-hardware-config > ~/nixos-dotfiles/hardware-configuration.nix
-
-# 4. Adjust before building:
-#    • GPU drivers in modules/system/hardware.nix (nvidia block, videoDrivers)
-#    • Monitor names in config/hypr/hyprland/general.conf (run: hyprctl monitors)
-#    • Mount UUIDs in modules/system/hardware.nix (run: lsblk -f)
-#    • Username: grep -r "alpha" . and replace with your username
-
-# 5. Build
-sudo nixos-rebuild switch --flake ~/nixos-dotfiles#nixos
-
-# 6. Bootstrap theming
-wal -i ~/wallpapers/<your-wallpaper>
-
-# 7. Set up Python venvs for media backends
-python3 -m venv ~/ani-env && ~/ani-env/bin/pip install requests
-python3 -m venv ~/.venv/manga && ~/.venv/manga/bin/pip install requests
-python3 -m venv ~/.venv/movies && ~/.venv/movies/bin/pip install requests
+sudo nixos-rebuild switch --impure --flake ~/nixos-dotfiles#nixos
 ```
 
-### Rebuilding
-
-```bash
-nrs      # rebuild
-nuprs    # update flake inputs + rebuild
-gnrs     # commit + rebuild
-```
+Add some images to `~/wallpapers/` and log in through SDDM.
 
 ---
 
-## Wallpapers
+## Day-to-day
 
-Expected in `~/wallpapers/`. The picker scans for `.jpg`, `.jpeg`, `.png`, `.webp`, `.gif`. Thumbnails are cached in `~/.cache/wallpaper-thumbs/`. The active wallpaper is symlinked at `~/wallpapers/current` and blurred to `~/wallpapers/.current-blurred.jpg` for the lock screen.
+```bash
+nrs     # rebuild
+nuprs   # flake update + rebuild
+gnrs    # git add . && commit "update" && rebuild
+```
 
-Personal wallpapers can live in `~/Bangers_Walls/` and are cycled with `Super+Shift+P`.
+Configs under `config/` are symlinked, so no rebuild is needed for them:
+
+```bash
+pkill -f 'quickshell -p'; sleep 0.5; setsid -f quickshell -p ~/.config/quickshell   # restart the shell
+hyprctl reload                                                                      # re-read Hyprland
+```
+
+New files must be `git add`-ed before `nrs` — flakes ignore untracked files.
+
+Other aliases: `ff` / `gf` (fastfetch with a random logo), `ls` / `ll` (eza), `webp2png`, `zip2cbz`, `btw`.
 
 ---
 
 ## Notes
 
-- Quickshell is pulled from upstream Git (not nixpkgs) via the `quickshell` flake input, following `nixpkgs-unstable`.
-- The bar's cava visualizer only runs when media is `Playing`. It reads raw ASCII values from `cava/config_raw` and decays to zero when paused.
-- `WLR_DRM_DEVICES=/dev/dri/card1` forces Hyprland to a specific GPU. Run `ls /dev/dri/` and adjust or remove if your setup differs.
-- The Bikram Sambat calendar in `CalendarPanel.qml` has full BS↔AD conversion built in with a lookup table covering BS 2000–2090.
-- All three backend servers (anime/manga/movies) are started by Quickshell and restart automatically on exit.
-- Media backend Python venvs are **not** managed by Nix — create them manually after the first rebuild (see setup above).
-- The music panel supports multiple players simultaneously — use the player selector dropdown to lock to a specific one or leave it on Auto.
-- DNS is set to Cloudflare + Quad9 over TLS via `systemd-resolved` (opportunistic mode).
-- The networking module uses `systemd-resolved` as the NetworkManager DNS backend with DNSSEC enabled.
-- The transmission VPN kill-switch (`modules/system/vpn.nix`) runs Transmission inside an isolated network namespace with ProtonVPN WireGuard — if the VPN drops, Transmission loses all connectivity.
-
----
+- NVIDIA runs in PRIME offload; Hyprland is pinned to DRM cards via `AQ_DRM_DEVICES`.
+- The bar and music panel each run their own cava, only while something plays.
+- Shell updates are backed up to `~/.cache/qs-update-backups/<time>-<name>/` before files are changed.
+- Sticky notes, screen time and caches live outside the repo on purpose.
+- `nrs` builds with `--impure` so it can pick up an optional private module directory outside the repo.
 
 ## Credits
 
-- [NixOS](https://nixos.org)
-- [Hyprland](https://hyprland.org)
-- [Quickshell](https://quickshell.org) by outfoxxed
-- Quickshell config inspiration: [Harman1307/dotfiles-Hyprland](https://github.com/Harman1307/dotfiles-Hyprland)
-
----
+[NixOS](https://nixos.org) · [Hyprland](https://hyprland.org) · [Quickshell](https://quickshell.org) by outfoxxed · [Catppuccin](https://catppuccin.com) · [LRCLIB](https://lrclib.net) · [yt-dlp](https://github.com/yt-dlp/yt-dlp) · Quickshell inspiration from [Harman1307/dotfiles-Hyprland](https://github.com/Harman1307/dotfiles-Hyprland)
 
 ## License
 
-MIT — do whatever you want with it.
+MIT

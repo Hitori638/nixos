@@ -5,5 +5,6 @@
     ./editors.nix
     ./languages.nix
     ./tools.nix
+    ./ai.nix
   ];
 }

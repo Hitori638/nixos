@@ -22,6 +22,9 @@
     # audio / media
     pavucontrol
 
+    # monitor brightness (DDC/CI)
+    ddcutil
+
     # file management
     gvfs
     mtpfs

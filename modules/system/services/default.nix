@@ -6,5 +6,7 @@
     ./media.nix
     ./misc.nix
     ./udev.nix
+    ./transmission.nix
+    ./tailscale.nix
   ];
 }

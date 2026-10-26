@@ -1,0 +1,15 @@
+# Raw cava feed for the Quickshell bar background (mirrored around the centre, bass in the middle).
+[general]
+bars = 48
+framerate = 60
+autosens = 1
+
+[output]
+method = raw
+raw_target = /dev/stdout
+data_format = ascii
+ascii_max_range = 1000
+channels = mono
+
+[smoothing]
+noise_reduction = 60

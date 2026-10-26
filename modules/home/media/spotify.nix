@@ -23,7 +23,7 @@ in {
   xdg.desktopEntries.spotify = {
     name = "Spotify";
     exec = "spotify --no-zygote %U";
-    icon = "spotify";
+    icon = "spotify-client";
     terminal = false;
     categories = ["Audio" "Music"];
   };

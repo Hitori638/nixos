@@ -11,16 +11,16 @@ PanelWindow {
     	screen: Quickshell.screens.length > 0 ? (root.focusedScreen ?? Quickshell.screens[0]) : undefined
     	visible: true
     	exclusionMode: ExclusionMode.Ignore
-    	anchors { 
-		top: true; 
-		bottom: true; 
-		right: true 
-	}
-    	margins { 
-		top: 40; 
-		bottom: 10; 
-		right: root.dashboardVisible ? 6 : -450 
-	}
+    	anchors {
+    		top: true
+    		bottom: true
+    		right: true
+    	}
+    	margins {
+    		top: (10) + root.barInsetTop
+    		bottom: (root.barInsetBottom + 8)
+    		right: (root.dashboardVisible ? 6 : -450) + root.barInsetRight
+    	}
     	implicitWidth: 420
     	color: "transparent"
     	focusable: true
@@ -34,9 +34,146 @@ PanelWindow {
     	property int cpuVal: 0
     	property int ramVal: 0
     	property int diskVal: 0
+	property string cpuUsed: ""
+	property string cpuDetail: ""
+	property string ramUsed: ""
+	property string ramDetail: ""
+	property string diskUsed: ""
+	property string diskDetail: ""
     	property int batVal: 100
     	property int volVal: 50
     	property int brightVal: 100
+	// ── v9: weather (~/.config/scripts/weather.sh, Open-Meteo) ──
+	property var wx: null
+	property real wxFetchedAt: 0
+	function wxRefresh(force) {
+		if (wxProc.running) return
+		wxProc.command = [root.homePath + "/.config/scripts/weather.sh"].concat(force ? ["--force"] : [])
+		wxProc.running = true
+	}
+	function wxIcon(c, day) {
+		if (c === 0 || c === 1) return day ? "󰖙" : "󰖔"
+		if (c === 2) return day ? "󰖕" : "󰼱"
+		if (c === 3) return "󰖐"
+		if (c === 45 || c === 48) return "󰖑"
+		if (c === 65 || c === 82) return "󰖖"
+		if (c === 66 || c === 67) return "󰙿"
+		if ((c >= 51 && c <= 63) || c === 80 || c === 81) return "󰖗"
+		if ((c >= 71 && c <= 77) || c === 85 || c === 86) return "󰖘"
+		if (c === 95) return "󰙾"
+		if (c === 96 || c === 99) return "󰖒"
+		return "󰖐"
+	}
+	function wxDesc(c) {
+		var d = { 0: "Clear", 1: "Mostly clear", 2: "Partly cloudy", 3: "Overcast", 45: "Fog", 48: "Freezing fog",
+		          51: "Light drizzle", 53: "Drizzle", 55: "Heavy drizzle", 56: "Freezing drizzle", 57: "Freezing drizzle",
+		          61: "Light rain", 63: "Rain", 65: "Heavy rain", 66: "Freezing rain", 67: "Freezing rain",
+		          71: "Light snow", 73: "Snow", 75: "Heavy snow", 77: "Snow grains", 80: "Showers", 81: "Showers",
+		          82: "Heavy showers", 85: "Snow showers", 86: "Snow showers", 95: "Thunderstorm",
+		          96: "Thunderstorm, hail", 99: "Thunderstorm, hail" }
+		return d[c] || "—"
+	}
+	function wxTint(c, day) {
+		if (c <= 1) return day ? root.walPeach : root.walColor13
+		if (c === 2) return day ? root.walColor4 : root.walColor13
+		if (c === 3 || c === 45 || c === 48) return root.walColor8
+		if (c >= 95) return root.walColor5
+		if ((c >= 71 && c <= 77) || c === 85 || c === 86) return root.walForeground
+		return root.walColor6
+	}
+	function aqiLabel(v) {
+		return v <= 50 ? "good" : v <= 100 ? "moderate" : v <= 150 ? "sensitive" : v <= 200 ? "unhealthy" : v <= 300 ? "very unhealthy" : "hazardous"
+	}
+	function aqiTint(v) {
+		return v <= 50 ? root.walColor2 : v <= 100 ? root.walColor4 : v <= 150 ? root.walPeach : root.walColor1
+	}
+	// ── v6: network speed (physical interfaces that are up; VPN tunnels skipped so
+	//    traffic isn't counted twice) ──
+	property real netRx: -1
+	property real netTx: -1
+	property string netIface: ""
+	property var netHist: []
+	property var netPrev: null
+	function fmtRate(b) {
+		if (b < 0) return "—"
+		if (b < 1024) return Math.round(b) + " B/s"
+		if (b < 1048576) return (b / 1024).toFixed(b < 10240 ? 1 : 0) + " KB/s"
+		return (b / 1048576).toFixed(b < 10485760 ? 2 : 1) + " MB/s"
+	}
+	function fmtBits(b) {
+		if (b < 0) return ""
+		var m = b * 8 / 1e6
+		return (m < 10 ? m.toFixed(1) : Math.round(m)) + " Mbps"
+	}
+	function netSample(text) {
+		var rx = 0, tx = 0, best = "", bestBytes = -1, now = Date.now()
+		var lines = ("" + text).split("\n")
+		for (var i = 0; i < lines.length; i++) {
+			var f = lines[i].trim().split(/\s+/)
+			if (f.length < 3) continue
+			var r = parseFloat(f[1]) || 0, t = parseFloat(f[2]) || 0
+			rx += r; tx += t
+			if (r + t > bestBytes) { bestBytes = r + t; best = f[0] }
+		}
+		netIface = best
+		var p = netPrev
+		netPrev = { rx: rx, tx: tx, t: now }
+		if (!p || now - p.t > 3500 || rx < p.rx || tx < p.tx) return
+		var dt = (now - p.t) / 1000
+		netRx = (rx - p.rx) / dt
+		netTx = (tx - p.tx) / dt
+		var h = netHist.slice()
+		h.push({ rx: netRx, tx: netTx })
+		while (h.length > 40) h.shift()
+		netHist = h
+	}
+	// ── v5: wheel steps are queued and sent one command at a time (relative ±5%),
+	//    and the 2 s poll doesn't overwrite the value while you're scrolling
+	property int volPending: 0
+	property int brightPending: 0
+	property real volAcc: 0
+	property real brightAcc: 0
+	property real volHold: 0
+	property real brightHold: 0
+	function wheelSteps(wheel, which) {
+		var dy = wheel.angleDelta.y !== 0 ? wheel.angleDelta.y : wheel.pixelDelta.y * 4
+		var acc = (which === "vol" ? volAcc : brightAcc) + dy
+		var steps = acc >= 0 ? Math.floor(acc / 120) : Math.ceil(acc / 120)
+		acc -= steps * 120
+		if (which === "vol") volAcc = acc; else brightAcc = acc
+		return steps
+	}
+	function scrollVol(wheel) {
+		var n = wheelSteps(wheel, "vol")
+		if (n === 0) return
+		volVal = Math.max(0, Math.min(100, volVal + n * 5))
+		volPending += n
+		flushVol()
+	}
+	function scrollBright(wheel) {
+		var n = wheelSteps(wheel, "bright")
+		if (n === 0) return
+		brightVal = Math.max(1, Math.min(100, brightVal + n * 5))
+		brightPending += n
+		flushBright()
+	}
+	function flushVol() {
+		volHold = Date.now() + 1500
+		if (volPending === 0 || volStepProc.running) return
+		var n = volPending
+		volPending = 0
+		volStepProc.command = ["bash", "-c", "wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ " + Math.abs(n * 5) + "%" + (n > 0 ? "+" : "-")
+			+ "; wpctl get-volume @DEFAULT_AUDIO_SINK@ | awk '{printf \"%.0f\\n\", $2*100}'"]
+		volStepProc.running = true
+	}
+	function flushBright() {
+		brightHold = Date.now() + 1500
+		if (brightPending === 0 || brightStepProc.running) return
+		var n = brightPending
+		brightPending = 0
+		brightStepProc.command = ["brightnessctl", "-m", "--min-value=1", "set", Math.abs(n * 5) + "%" + (n > 0 ? "+" : "-")]
+		brightStepProc.running = true
+	}
     	property string configPath: Quickshell.env("HOME") + "/.config/quickshell"
 	Item {
 		anchors.fill: parent
@@ -72,7 +209,7 @@ PanelWindow {
 					id: profileSection
                     			Layout.fillWidth: true
                     			Layout.preferredHeight: pfpPickerOpen ? 280 : 100
-                    			color: Qt.rgba(0, 0, 0, 0.5)
+                    			color: root.card(0.5)
                     			radius: 15
                     			clip: true
                     			property bool pfpPickerOpen: false
@@ -186,7 +323,7 @@ PanelWindow {
 						Rectangle {
 							Layout.fillWidth: true
                             				Layout.fillHeight: true
-                            				color: Qt.rgba(0, 0, 0, 0.5)
+                            				color: root.card(0.5)
                             				radius: 10
                             				visible: profileSection.pfpPickerOpen
 							ColumnLayout {
@@ -305,7 +442,7 @@ PanelWindow {
 				Rectangle {
 					Layout.fillWidth: true
                     			Layout.preferredHeight: 50
-                    			color: Qt.rgba(0, 0, 0, 0.5)
+                    			color: root.card(0.5)
                     			radius: 15
 					Row {
 						anchors.centerIn: parent
@@ -313,301 +450,63 @@ PanelWindow {
 						PowerBtn { 
 							icon: "⏻"; 
 							iconColor: root.walColor2; 
-							cmd: "systemctl poweroff" 
+							cmd: '"$HOME/.config/scripts/power.sh" poweroff' 
 						}
 						PowerBtn { 
 							icon: "󰜉"; 
 							iconColor: root.walColor13; 
-							cmd: "systemctl reboot" 
+							cmd: '"$HOME/.config/scripts/power.sh" reboot' 
 						}
 						PowerBtn { 
 							icon: "󰌾"; 
 							iconColor: root.walColor5; 
-							cmd: "hyprlock" 
+							cmd: '"$HOME/.config/scripts/power.sh" lock' 
 						}
 						PowerBtn { 
 							icon: "󰒲"; 
 							iconColor: root.walColor4; 
-							cmd: "systemctl suspend" 
+							cmd: '"$HOME/.config/scripts/power.sh" suspend' 
 						}
 						PowerBtn { 
 							icon: "󰍃"; 
 							iconColor: root.walColor1; 
-							cmd: "sleep 0.3 && hyprctl dispatch exit" 
+							cmd: '"$HOME/.config/scripts/power.sh" logout' 
 						}
 					}
 				}
 				Rectangle {
-					id: laptopScreenToggle
-                    			Layout.fillWidth: true
-                    			Layout.preferredHeight: 50
-                    			color: Qt.rgba(0, 0, 0, 0.5)
-                    			radius: 15
-                    			property bool laptopScreenEnabled: true
-                    			Component.onCompleted: checkScreenProc.running = true
-Process {
-    id: checkScreenProc
-    command: ["bash", "-c", "hyprctl monitors -j | grep -q '\"name\":\"eDP-1\"' && echo on || echo off"]
-    stdout: SplitParser {
-        onRead: data => {
-            laptopScreenToggle.laptopScreenEnabled = data.trim() === "on"
-        }
-    }
-}
-Process {
-    id: toggleScreenProc
-    command: {
-        if (laptopScreenToggle.laptopScreenEnabled)
-            return ["bash", "-c", "hyprctl dispatch 'hl.dsp.dpms({ action = \"disable\", monitor = \"eDP-1\" })'"]
-        else
-            return ["bash", "-c", "hyprctl dispatch 'hl.dsp.dpms({ action = \"enable\", monitor = \"eDP-1\" })'"]
-    }
-    onExited: checkScreenProc.running = true
-}
-					Timer {
-						interval: 1000
-    						running: root.dashboardVisible
-    						repeat: true
-    						triggeredOnStart: true
-    						onTriggered: {
-							if (!checkScreenProc.running) checkScreenProc.running = true
-						}
-					}
+					id: modeToggles
+					Layout.fillWidth: true
+					Layout.preferredHeight: 62
+					color: root.card(0.5)
+					radius: 15
 					RowLayout {
 						anchors.fill: parent
-                        			anchors.margins: 15
-                        			spacing: 10
-						Text {
-							text: "󰍹"
-                            				color: laptopScreenToggle.laptopScreenEnabled ? root.walColor5 : root.walColor8
-                            				font.pixelSize: 18
-                            				font.family: "JetBrainsMono Nerd Font"
+						anchors.margins: 7
+						spacing: 7
+						ModeChip {
+							icon: "󰛨"
+							label: "Night light"
+							sub: (root.nightLight ? "On · " : "Off · ") + root.nightTemp + "K · scroll"
+							active: root.nightLight
+							accent: root.walColor4
+							onToggled: root.toggleNightLight()
+							onScrolled: function(step) { root.setNightTemp(step) }
 						}
-						Text {
-							text: "Laptop Screen"
-                            				color: root.walForeground
-                            				font.pixelSize: 13
-                            				font.family: "JetBrainsMono Nerd Font"
-                            				Layout.fillWidth: true
-						}
-						Text {
-							text: laptopScreenToggle.laptopScreenEnabled ? "ON" : "OFF"
-                            				color: laptopScreenToggle.laptopScreenEnabled ? root.walColor2 : root.walColor8
-                            				font.pixelSize: 10
-                            				font.bold: true
-                          				font.family: "JetBrainsMono Nerd Font"
-						}
-						Rectangle {
-							width: 44
-							height: 24
-                            				radius: 12
-                            				color: laptopScreenToggle.laptopScreenEnabled ? root.walColor5 : Qt.rgba(0.3, 0.3, 0.3, 0.5)
-                            				Behavior on color { 
-								ColorAnimation { 
-									duration: 200 
-								} 
-							}
-							Rectangle {
-								width: 20
-                                				height: 20
-                                				radius: 10
-                                				y: 2
-                                				x: laptopScreenToggle.laptopScreenEnabled ? 22 : 2
-                                				color: root.walBackground
-                                				Behavior on x { 
-									NumberAnimation { 
-										duration: 200; 
-										easing.type: Easing.OutCubic 
-									} 
-								}
-							}
-							MouseArea {
-								anchors.fill: parent
-                                				cursorShape: Qt.PointingHandCursor
-                                				onClicked: {
-									if (!toggleScreenProc.running)
-                                        				toggleScreenProc.running = true
-								}
-							}
+						ModeChip {
+							icon: root.lightMode ? "󰖨" : "󰖔"
+							label: root.lightMode ? "Light theme" : "Dark theme"
+							sub: root.lightMode ? "Latte · tap for dark" : "Mocha · tap for light"
+							active: root.lightMode
+							accent: root.walColor13
+							onToggled: root.toggleLightMode()
 						}
 					}
 				}
-
-				Rectangle {
-    id: vpnToggle
-    Layout.fillWidth: true
-    Layout.preferredHeight: 50
-    color: Qt.rgba(0, 0, 0, 0.5)
-    radius: 15
-    property bool vpnEnabled: false
-
-    Component.onCompleted: vpnCheckProc.running = true
-
-    Process {
-		id: vpnCheckProc
-		command: ["bash", "-c", "systemctl is-active wg-quick-protonvpn-sys 2>/dev/null | grep -q '^active$' && echo on || echo off"]
-        stdout: SplitParser {
-            onRead: data => vpnToggle.vpnEnabled = data.trim() === "on"
-        }
-    }
-Process {
-    id: vpnNotifyProc
-    property string msg: ""
-    command: ["bash", "-c", "notify-send -a 'ProtonVPN' -i network-vpn '" + msg + "'"]
-}
-    Process {
-		id: vpnToggleProc
-		property bool wantEnabled: false
-command: {
-    if (vpnToggle.vpnEnabled)
-        return ["bash", "-c", "sudo systemctl stop wg-quick-protonvpn-sys 2>&1"]
-    else
-        return ["bash", "-c", "sudo systemctl start wg-quick-protonvpn-sys 2>&1"]
-}
-        onExited: {
-            vpnCheckTimer.start()
-        }
-    }
-
-    Timer {
-        id: vpnCheckTimer
-        interval: 1500
-        repeat: false
-		onTriggered: {
-
-			vpnCheckProc.running = true
-			       vpnResultTimer.start()
-
-		}
-	}
-	Timer {
-    id: vpnResultTimer
-    interval: 500
-    repeat: false
-    onTriggered: {
-        var wanted = !vpnToggle.vpnEnabled  // what we tried to do before check
-        // re-read after check completes
-        vpnResultCheckProc.running = true
-    }
-}
-
-Process {
-    id: vpnResultCheckProc
-    property bool previousState: false
-    command: ["bash", "-c", "systemctl is-active wg-quick-protonvpn-sys 2>/dev/null | grep -q '^active$' && echo on || echo off"]
-    stdout: SplitParser {
-        onRead: data => {
-            var isOn = data.trim() === "on"
-            vpnToggle.vpnEnabled = isOn
-            if (isOn) {
-                vpnNotifyProc.msg = "VPN Connected — ProtonVPN is active"
-                vpnNotifyProc.running = true
-            } else {
-                vpnNotifyProc.msg = "VPN Disconnected — ProtonVPN is off"
-                vpnNotifyProc.running = true
-            }
-        }
-    }
-}
-
-Timer {
-    id: vpnCrashWatcher
-    interval: 10000
-    running: vpnToggle.vpnEnabled
-    repeat: true
-    onTriggered: {
-        vpnCrashCheckProc.running = true
-    }
-}
-
-Process {
-    id: vpnCrashCheckProc
-    property bool wasEnabled: false
-    command: ["bash", "-c", "systemctl is-active wg-quick-protonvpn-sys 2>/dev/null | grep -q '^active$' && echo on || echo off"]
-    stdout: SplitParser {
-        onRead: data => {
-            var isOn = data.trim() === "on"
-            if (vpnToggle.vpnEnabled && !isOn) {
-                // was on, now off = crash
-                vpnToggle.vpnEnabled = false
-                vpnNotifyProc.msg = "VPN Crashed — ProtonVPN dropped unexpectedly!"
-                vpnNotifyProc.running = true
-            }
-        }
-    }
-}
-
-    Timer {
-        interval: 5000
-        running: root.dashboardVisible
-        repeat: true
-        triggeredOnStart: false
-        onTriggered: {
-            if (!vpnCheckProc.running) vpnCheckProc.running = true
-        }
-    }
-
-    RowLayout {
-        anchors.fill: parent
-        anchors.margins: 15
-        spacing: 10
-
-        Text {
-            text: "󰦝"
-            color: vpnToggle.vpnEnabled ? root.walColor2 : root.walColor8
-            font.pixelSize: 18
-            font.family: "JetBrainsMono Nerd Font"
-            Behavior on color { ColorAnimation { duration: 200 } }
-        }
-
-        Text {
-            text: "ProtonVPN"
-            color: root.walForeground
-            font.pixelSize: 13
-            font.family: "JetBrainsMono Nerd Font"
-            Layout.fillWidth: true
-        }
-
-        Text {
-            text: vpnToggle.vpnEnabled ? "ON" : "OFF"
-            color: vpnToggle.vpnEnabled ? root.walColor2 : root.walColor8
-            font.pixelSize: 10
-            font.bold: true
-            font.family: "JetBrainsMono Nerd Font"
-            Behavior on color { ColorAnimation { duration: 200 } }
-        }
-
-        Rectangle {
-            width: 44
-            height: 24
-            radius: 12
-            color: vpnToggle.vpnEnabled ? root.walColor2 : Qt.rgba(0.3, 0.3, 0.3, 0.5)
-            Behavior on color { ColorAnimation { duration: 200 } }
-
-            Rectangle {
-                width: 20
-                height: 20
-                radius: 10
-                y: 2
-                x: vpnToggle.vpnEnabled ? 22 : 2
-                color: root.walBackground
-                Behavior on x { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
-            }
-
-            MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                onClicked: {
-                    if (!vpnToggleProc.running) vpnToggleProc.running = true
-                }
-            }
-        }
-    }
-}
 				Rectangle {
 					Layout.fillWidth: true
                    			Layout.preferredHeight: 70
-                    			color: Qt.rgba(0, 0, 0, 0.5)
+                    			color: root.card(0.5)
                     			radius: 15
                     			RowLayout {
 						anchors.fill: parent
@@ -641,36 +540,37 @@ Process {
 				}
 				Rectangle {
 					Layout.fillWidth: true
-                    			Layout.preferredHeight: 140
-                    			color: Qt.rgba(0, 0, 0, 0.5)
+                    			Layout.preferredHeight: 164
+                    			color: root.card(0.5)
                     			radius: 15
                     			Row {
 						anchors.centerIn: parent
-                        			spacing: 30
+                        			spacing: 22
+
                         			CircularStat { 
 							label: "CPU"; 
 							icon: ""; 
 							barColor: root.walColor1; 
-							value: dashboard.cpuVal 
+							value: dashboard.cpuVal; used: dashboard.cpuUsed; detail: dashboard.cpuDetail 
 						}
                         			CircularStat { 
 							label: "RAM"; 
 							icon: ""; 
 							barColor: root.walColor5; 
-							value: dashboard.ramVal 
+							value: dashboard.ramVal; used: dashboard.ramUsed; detail: dashboard.ramDetail 
 						}
                       				CircularStat { 
-							label: "DISK"; 
+							label: "DISKS"; 
 							icon: ""; 
 							barColor: root.walColor4; 
-							value: dashboard.diskVal 
+							value: dashboard.diskVal; used: dashboard.diskUsed; detail: dashboard.diskDetail 
 						}
 					}
 				}
 				Rectangle {
 					Layout.fillWidth: true
                     			Layout.preferredHeight: 100
-                    			color: Qt.rgba(0, 0, 0, 0.5)
+                    			color: root.card(0.5)
                     			radius: 15
                     			Column {
 						anchors.fill: parent
@@ -704,7 +604,7 @@ Process {
                                 				height: 8
                                					anchors.verticalCenter: parent.verticalCenter
                                 				radius: 4
-                                				color: Qt.rgba(0,0,0,0.3)
+                                				color: root.card(0.3)
                                 				Rectangle {
 									width: parent.width * dashboard.volVal / 100
                                     					height: parent.height
@@ -719,7 +619,10 @@ Process {
 								MouseArea {
 									anchors.fill: parent
                                     					cursorShape: Qt.PointingHandCursor
-                                    					onClicked: function(mouse) {
+                                    					anchors.topMargin: -6
+									anchors.bottomMargin: -6
+									onWheel: function(wheel) { dashboard.scrollVol(wheel) }
+									onClicked: function(mouse) {
 										var percent = Math.round((mouse.x / parent.width) * 100)
                                         					percent = Math.max(0, Math.min(100, percent))
                                         					dashboard.volVal = percent
@@ -769,7 +672,7 @@ Process {
                                 				height: 8
                                 				anchors.verticalCenter: parent.verticalCenter
                                 				radius: 4
-                                				color: Qt.rgba(0,0,0,0.3)
+                                				color: root.card(0.3)
                                 				Rectangle {
 									width: parent.width * dashboard.brightVal / 100
                                     					height: parent.height
@@ -784,11 +687,14 @@ Process {
 								MouseArea {
 									anchors.fill: parent
                                     					cursorShape: Qt.PointingHandCursor
-                                    					onClicked: function(mouse) {
+                                    					anchors.topMargin: -6
+									anchors.bottomMargin: -6
+									onWheel: function(wheel) { dashboard.scrollBright(wheel) }
+									onClicked: function(mouse) {
 										var percent = Math.round((mouse.x / parent.width) * 100)
                                         					percent = Math.max(1, Math.min(100, percent))
                                         					dashboard.brightVal = percent
-                                        					brightSetProc.command = ["bash", "-c", "brightnessctl set " + percent + "%"]
+                                        					brightSetProc.command = ["bash", "-c", "$HOME/.config/scripts/brightness.sh set " + percent]
                                         					brightSetProc.running = true
 									}
 									onPositionChanged: function(mouse) {
@@ -796,7 +702,7 @@ Process {
 											var percent = Math.round((mouse.x / parent.width) * 100)
                                             						percent = Math.max(1, Math.min(100, percent))
                                             						dashboard.brightVal = percent
-                                           						brightSetProc.command = ["bash", "-c", "brightnessctl set " + percent + "%"]
+                                           						brightSetProc.command = ["bash", "-c", "$HOME/.config/scripts/brightness.sh set " + percent]
                                             						brightSetProc.running = true	
 										}
 									}
@@ -819,30 +725,417 @@ Process {
 					}
 				}
 				Rectangle {
+					// ── network speed ──
 					Layout.fillWidth: true
-                    			Layout.fillHeight: true
-                    			color: Qt.rgba(0, 0, 0, 0.5)
-                    			radius: 15
-                    			Column {
+					Layout.preferredHeight: 74
+					color: root.card(0.5)
+					radius: 15
+					RowLayout {
 						anchors.fill: parent
-                        			anchors.margins: 15
-                        			spacing: 10
-                        			Text {
-							id: timeDisplay
-                            				anchors.horizontalCenter: parent.horizontalCenter
-                            				text: "12:00:00 AM"
-                            				color: root.walColor5
-                            				font.pixelSize: 40
-                            				font.family: "JetBrainsMono Nerd Font"
+						anchors.leftMargin: 15
+						anchors.rightMargin: 12
+						anchors.topMargin: 10
+						anchors.bottomMargin: 10
+						spacing: 14
+						Repeater {
+							model: [
+								{ icon: "󰇚", label: "DOWN", key: "rx" },
+								{ icon: "󰕒", label: "UP", key: "tx" }
+							]
+							delegate: ColumnLayout {
+								required property var modelData
+								readonly property real rate: modelData.key === "rx" ? dashboard.netRx : dashboard.netTx
+								readonly property color tint: modelData.key === "rx" ? root.walColor2 : root.walPeach
+								spacing: 1
+								Layout.preferredWidth: 92
+								Row {
+									spacing: 5
+									Text {
+										text: modelData.icon
+										color: tint
+										font.pixelSize: 12
+										font.family: "JetBrainsMono Nerd Font"
+									}
+									Text {
+										text: modelData.label
+										color: root.walColor8
+										font.pixelSize: 9
+										font.bold: true
+										font.letterSpacing: 0.6
+										font.family: "JetBrainsMono Nerd Font"
+										anchors.verticalCenter: parent.verticalCenter
+									}
+								}
+								Text {
+									text: dashboard.fmtRate(rate)
+									color: root.walForeground
+									font.pixelSize: 15
+									font.bold: true
+									font.family: "JetBrainsMono Nerd Font"
+								}
+								Text {
+									text: dashboard.fmtBits(rate)
+									color: root.walColor8
+									font.pixelSize: 9
+									font.family: "JetBrainsMono Nerd Font"
+								}
+							}
+						}
+						Item {
+							Layout.fillWidth: true
+							Layout.fillHeight: true
+							Canvas {
+								id: netCanvas
+								anchors.fill: parent
+								property var hist: dashboard.netHist
+								onHistChanged: requestPaint()
+								onPaint: {
+									var ctx = getContext("2d")
+									ctx.reset()
+									var h = hist
+									if (!h || h.length < 2) return
+									var max = 4096
+									for (var i = 0; i < h.length; i++) max = Math.max(max, h[i].rx, h[i].tx)
+									var step = width / 39
+									function trace(key, col, fill) {
+										ctx.beginPath()
+										for (var i = 0; i < h.length; i++) {
+											var x = width - (h.length - 1 - i) * step
+											var y = height - 2 - (height - 6) * h[i][key] / max
+											if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y)
+										}
+										ctx.strokeStyle = col
+										ctx.lineWidth = 1.6
+										ctx.stroke()
+										if (fill) {
+											ctx.lineTo(width, height)
+											ctx.lineTo(width - (h.length - 1) * step, height)
+											ctx.closePath()
+											ctx.fillStyle = Qt.rgba(col.r, col.g, col.b, 0.15)
+											ctx.fill()
+										}
+									}
+									trace("rx", root.walColor2, true)
+									trace("tx", root.walPeach, false)
+								}
+							}
+							Text {
+								anchors.top: parent.top
+								anchors.right: parent.right
+								text: dashboard.netIface
+								color: root.walColor8
+								opacity: 0.7
+								font.pixelSize: 9
+								font.family: "JetBrainsMono Nerd Font"
+							}
+						}
+					}
+					Timer {
+						interval: 1000
+						running: root.dashboardVisible
+						repeat: true
+						triggeredOnStart: true
+						onTriggered: if (!netProc.running) netProc.running = true
+					}
+					Process {
+						id: netProc
+						command: ["bash", "-c", "for i in /sys/class/net/*; do n=${i##*/}; [ -e \"$i/device\" ] || continue; [ \"$(cat \"$i/operstate\" 2>/dev/null)\" = up ] || continue; echo \"$n $(cat \"$i/statistics/rx_bytes\") $(cat \"$i/statistics/tx_bytes\")\"; done"]
+						stdout: StdioCollector { onStreamFinished: dashboard.netSample(this.text) }
+					}
+				}
+				Rectangle {
+					// ── weather (replaces the clock — it lives in the calendar panel) ──
+					id: wxCard
+					Layout.fillWidth: true
+					Layout.fillHeight: true
+					Layout.minimumHeight: 110
+					color: root.card(0.5)
+					radius: 15
+					clip: true
+					readonly property var w: dashboard.wx
+					readonly property bool ok: w !== null && w.ok === true
+					MouseArea {
+						anchors.fill: parent
+						cursorShape: Qt.PointingHandCursor
+						onClicked: dashboard.wxRefresh(true)
+					}
+					ColumnLayout {
+						visible: wxCard.ok
+						anchors.fill: parent
+						anchors.margins: 14
+						spacing: 10
+						// now
+						RowLayout {
+							Layout.fillWidth: true
+							spacing: 12
+							Text {
+								text: wxCard.ok ? dashboard.wxIcon(wxCard.w.now.code, wxCard.w.now.day) : ""
+								color: wxCard.ok ? dashboard.wxTint(wxCard.w.now.code, wxCard.w.now.day) : root.walColor8
+								font.pixelSize: 46
+								font.family: "JetBrainsMono Nerd Font"
+							}
+							ColumnLayout {
+								Layout.fillWidth: true
+								spacing: 0
+								Row {
+									spacing: 2
+									Text {
+										text: wxCard.ok ? wxCard.w.now.temp + "°" : ""
+										color: root.walForeground
+										font.pixelSize: 34
+										font.bold: true
+										font.family: "JetBrainsMono Nerd Font"
+									}
+								}
+								Text {
+									Layout.fillWidth: true
+									elide: Text.ElideRight
+									text: wxCard.ok ? dashboard.wxDesc(wxCard.w.now.code) + " · feels " + wxCard.w.now.feels + "°" : ""
+									color: root.walColor8
+									font.pixelSize: 11
+									font.family: "JetBrainsMono Nerd Font"
+								}
+							}
+							ColumnLayout {
+								spacing: 1
+								Layout.alignment: Qt.AlignTop
+								Text {
+									Layout.alignment: Qt.AlignRight
+									text: wxCard.ok ? wxCard.w.place : ""
+									color: root.walColor5
+									font.pixelSize: 11
+									font.bold: true
+									font.family: "JetBrainsMono Nerd Font"
+								}
+								Text {
+									Layout.alignment: Qt.AlignRight
+									text: wxCard.ok ? "H " + wxCard.w.today.max + "°  L " + wxCard.w.today.min + "°" : ""
+									color: root.walForeground
+									font.pixelSize: 11
+									font.family: "JetBrainsMono Nerd Font"
+								}
+								Text {
+									Layout.alignment: Qt.AlignRight
+									text: wxCard.ok ? (wxCard.w.stale ? "offline · " : "") + "at " + wxCard.w.updated : ""
+									color: wxCard.ok && wxCard.w.stale ? root.walColor1 : root.walColor8
+									opacity: 0.7
+									font.pixelSize: 9
+									font.family: "JetBrainsMono Nerd Font"
+								}
+							}
+						}
+						// details
+						Flow {
+							Layout.fillWidth: true
+							spacing: 6
+							Repeater {
+								model: !wxCard.ok ? [] : [
+									{ i: "󰖎", t: wxCard.w.now.humidity + "%", c: root.walColor6 },
+									{ i: "󰖝", t: wxCard.w.now.wind + " " + wxCard.w.wind_unit, c: root.walColor13 },
+									{ i: "󰕊", t: wxCard.w.today.pop + "% rain", c: root.walColor4 },
+									{ i: "󰖙", t: "UV " + wxCard.w.today.uv, c: wxCard.w.today.uv >= 6 ? root.walPeach : root.walColor2 }
+								].concat(wxCard.w.aqi ? [{ i: "󰌪", t: "AQI " + wxCard.w.aqi.us + " · " + dashboard.aqiLabel(wxCard.w.aqi.us), c: dashboard.aqiTint(wxCard.w.aqi.us) }] : [])
+								delegate: Rectangle {
+									required property var modelData
+									width: chipRow.implicitWidth + 14
+									height: 22
+									radius: 11
+									color: Qt.rgba(modelData.c.r, modelData.c.g, modelData.c.b, 0.14)
+									Row {
+										id: chipRow
+										anchors.centerIn: parent
+										spacing: 4
+										Text { text: modelData.i; color: modelData.c; font.pixelSize: 11; font.family: "JetBrainsMono Nerd Font" }
+										Text { text: modelData.t; color: root.walForeground; font.pixelSize: 9; font.family: "JetBrainsMono Nerd Font"; anchors.verticalCenter: parent.verticalCenter }
+									}
+								}
+							}
+						}
+						// next hours
+						Row {
+							id: hourRow
+							visible: wxCard.height > 230
+							Layout.fillWidth: true
+							Repeater {
+								model: wxCard.ok ? wxCard.w.hours : []
+								delegate: Column {
+									required property var modelData
+									required property int index
+									width: hourRow.width / Math.max(1, wxCard.w.hours.length)
+									spacing: 2
+									Text {
+										anchors.horizontalCenter: parent.horizontalCenter
+										text: index === 0 ? "now" : modelData.h
+										color: index === 0 ? root.walColor5 : root.walColor8
+										font.pixelSize: 9
+										font.bold: index === 0
+										font.family: "JetBrainsMono Nerd Font"
+									}
+									Text {
+										anchors.horizontalCenter: parent.horizontalCenter
+										text: dashboard.wxIcon(modelData.code, modelData.day)
+										color: dashboard.wxTint(modelData.code, modelData.day)
+										font.pixelSize: 16
+										font.family: "JetBrainsMono Nerd Font"
+									}
+									Text {
+										anchors.horizontalCenter: parent.horizontalCenter
+										text: modelData.temp + "°"
+										color: root.walForeground
+										font.pixelSize: 10
+										font.family: "JetBrainsMono Nerd Font"
+									}
+									Text {
+										anchors.horizontalCenter: parent.horizontalCenter
+										text: modelData.pop >= 20 ? modelData.pop + "%" : " "
+										color: root.walColor6
+										font.pixelSize: 8
+										font.family: "JetBrainsMono Nerd Font"
+									}
+								}
+							}
+						}
+						// next days
+						ColumnLayout {
+							visible: wxCard.height > 340
+							Layout.fillWidth: true
+							spacing: 4
+							Repeater {
+								model: wxCard.ok ? wxCard.w.days : []
+								delegate: RowLayout {
+									required property var modelData
+									Layout.fillWidth: true
+									spacing: 8
+									readonly property real lo: Math.min.apply(null, wxCard.w.days.map(function(d) { return d.min }))
+									readonly property real hi: Math.max.apply(null, wxCard.w.days.map(function(d) { return d.max }))
+									Text {
+										text: Qt.formatDate(new Date(modelData.date + "T12:00:00"), "ddd")
+										color: root.walColor8
+										font.pixelSize: 10
+										font.family: "JetBrainsMono Nerd Font"
+										Layout.preferredWidth: 30
+									}
+									Text {
+										text: dashboard.wxIcon(modelData.code, true)
+										color: dashboard.wxTint(modelData.code, true)
+										font.pixelSize: 14
+										font.family: "JetBrainsMono Nerd Font"
+										Layout.preferredWidth: 20
+									}
+									Text {
+										text: modelData.pop >= 20 ? modelData.pop + "%" : ""
+										color: root.walColor6
+										font.pixelSize: 9
+										font.family: "JetBrainsMono Nerd Font"
+										Layout.preferredWidth: 28
+									}
+									Text {
+										text: modelData.min + "°"
+										color: root.walColor8
+										font.pixelSize: 10
+										font.family: "JetBrainsMono Nerd Font"
+										Layout.preferredWidth: 26
+										horizontalAlignment: Text.AlignRight
+									}
+									Item {
+										Layout.fillWidth: true
+										height: 4
+										Rectangle {
+											anchors.fill: parent
+											radius: 2
+											color: root.card(0.6)
+										}
+										Rectangle {
+											readonly property real span: Math.max(1, parent.parent.hi - parent.parent.lo)
+											x: parent.width * (modelData.min - parent.parent.lo) / span
+											width: Math.max(4, parent.width * (modelData.max - modelData.min) / span)
+											height: parent.height
+											radius: 2
+											gradient: Gradient {
+												orientation: Gradient.Horizontal
+												GradientStop { position: 0; color: root.walColor6 }
+												GradientStop { position: 1; color: root.walPeach }
+											}
+										}
+									}
+									Text {
+										text: modelData.max + "°"
+										color: root.walForeground
+										font.pixelSize: 10
+										font.family: "JetBrainsMono Nerd Font"
+										Layout.preferredWidth: 26
+									}
+								}
+							}
+						}
+						Item { Layout.fillHeight: true }
+						// sun
+						RowLayout {
+							Layout.fillWidth: true
+							spacing: 12
+							Text {
+								text: "󰖜 " + (wxCard.ok ? wxCard.w.sun.rise : "")
+								color: root.walPeach
+								font.pixelSize: 10
+								font.family: "JetBrainsMono Nerd Font"
+							}
+							Text {
+								text: "󰖛 " + (wxCard.ok ? wxCard.w.sun.set : "")
+								color: root.walColor13
+								font.pixelSize: 10
+								font.family: "JetBrainsMono Nerd Font"
+							}
+							Item { Layout.fillWidth: true }
+							Text {
+								text: wxProc.running ? "󰑐 updating…" : "tap to refresh"
+								color: root.walColor8
+								opacity: 0.6
+								font.pixelSize: 9
+								font.family: "JetBrainsMono Nerd Font"
+							}
+						}
+					}
+					// loading / error
+					Column {
+						visible: !wxCard.ok
+						anchors.centerIn: parent
+						spacing: 6
+						Text {
+							anchors.horizontalCenter: parent.horizontalCenter
+							text: "󰖐"
+							color: root.walColor8
+							font.pixelSize: 34
+							font.family: "JetBrainsMono Nerd Font"
 						}
 						Text {
-							id: dateDisplay
-                            				anchors.horizontalCenter: parent.horizontalCenter
-                           				text: "01.01.2026, Friday"
-                            				color: root.walForeground
-                            				font.pixelSize: 14
-                            				font.family: "JetBrainsMono Nerd Font"
+							anchors.horizontalCenter: parent.horizontalCenter
+							text: dashboard.wx && dashboard.wx.error ? dashboard.wx.error + " · tap to retry" : "loading weather…"
+							color: root.walColor8
+							font.pixelSize: 10
+							font.family: "JetBrainsMono Nerd Font"
 						}
+					}
+					Process {
+						id: wxProc
+						stdout: StdioCollector {
+							onStreamFinished: {
+								try {
+									var j = JSON.parse(this.text)
+									if (j.ok || !dashboard.wx || !dashboard.wx.ok) dashboard.wx = j
+									if (j.ok) dashboard.wxFetchedAt = Date.now()
+								} catch (e) {
+									if (!dashboard.wx || !dashboard.wx.ok) dashboard.wx = { ok: false, error: "weather.sh failed" }
+								}
+							}
+						}
+					}
+					Timer {
+						// on open, then every 10 min while the dashboard is open (the script caches 15 min)
+						interval: 600000
+						running: root.dashboardVisible
+						repeat: true
+						triggeredOnStart: true
+						onTriggered: dashboard.wxRefresh(false)
 					}
 				}
 			}
@@ -874,64 +1167,153 @@ Process {
 		}
 	}
 	component CircularStat: Item {
+		id: stat
 		property string label
-        	property string icon
-        	property color barColor
-        	property int value
-        	width: 90
-        	height: 110
+		property string icon
+		property color barColor
+		property int value
+		property string used: ""
+		property string detail: ""
+		readonly property bool hovered: statMa.containsMouse
+		width: 100
+		height: 132
 		Column {
 			anchors.centerIn: parent
-            		spacing: 8
-            		Item {
-				width: 70
-                		height: 70
-                		anchors.horizontalCenter: parent.horizontalCenter
-                		Canvas {
+			spacing: 8
+			Item {
+				width: 76
+				height: 76
+				anchors.horizontalCenter: parent.horizontalCenter
+				scale: stat.hovered ? 1.06 : 1.0
+				Behavior on scale { NumberAnimation { duration: 160; easing.type: Easing.OutBack } }
+				Canvas {
 					anchors.fill: parent
-                    			property int statValue: value
-                    			onStatValueChanged: requestPaint()
-                    			onPaint: {
+					property int statValue: stat.value
+					property bool hov: stat.hovered
+					property color track: root.card(0.5)
+					property color fg: stat.barColor
+					onStatValueChanged: requestPaint()
+					onHovChanged: requestPaint()
+					onTrackChanged: requestPaint()
+					onFgChanged: requestPaint()
+					onPaint: {
 						var ctx = getContext("2d")
-                        			ctx.clearRect(0, 0, width, height)
-                        			ctx.lineWidth = 5
-                        			ctx.lineCap = "round"
-                        			ctx.strokeStyle = Qt.rgba(0, 0, 0, 0.5)
-                        			ctx.beginPath()
-                        			ctx.arc(35, 35, 32, 0, 2 * Math.PI)
-                        			ctx.stroke()
-                        			ctx.strokeStyle = barColor
-                        			ctx.beginPath()
-                        			ctx.arc(35, 35, 32, -Math.PI / 2, -Math.PI / 2 + (statValue / 100) * 2 * Math.PI)
-                        			ctx.stroke()
+						ctx.clearRect(0, 0, width, height)
+						var r = width / 2 - 5
+						ctx.lineWidth = hov ? 7 : 5
+						ctx.lineCap = "round"
+						ctx.strokeStyle = track
+						ctx.beginPath()
+						ctx.arc(width / 2, height / 2, r, 0, 2 * Math.PI)
+						ctx.stroke()
+						ctx.strokeStyle = fg
+						ctx.beginPath()
+						ctx.arc(width / 2, height / 2, r, -Math.PI / 2, -Math.PI / 2 + (statValue / 100) * 2 * Math.PI)
+						ctx.stroke()
 					}
 				}
 				Column {
 					anchors.centerIn: parent
-					spacing: 2
+					spacing: 1
 					Text {
 						anchors.horizontalCenter: parent.horizontalCenter
-						text: icon
-                        			color: barColor
-                        			font.pixelSize: 16
-                        			font.family: "JetBrainsMono Nerd Font"
+						text: stat.icon
+						color: stat.barColor
+						font.pixelSize: stat.hovered ? 12 : 16
+						font.family: "JetBrainsMono Nerd Font"
 					}
 					Text {
 						anchors.horizontalCenter: parent.horizontalCenter
-                        			text: value + "%"
-                        			color: root.walForeground
-                        			font.pixelSize: 14
-                      				font.family: "JetBrainsMono Nerd Font"
+						text: stat.hovered && stat.used !== "" ? stat.used : stat.value + "%"
+						color: root.walForeground
+						font.pixelSize: stat.hovered ? 11 : 14
+						font.bold: stat.hovered
+						font.family: "JetBrainsMono Nerd Font"
+					}
+					Text {
+						anchors.horizontalCenter: parent.horizontalCenter
+						visible: stat.hovered
+						text: stat.value + "%"
+						color: stat.barColor
+						font.pixelSize: 9
+						font.family: "JetBrainsMono Nerd Font"
 					}
 				}
 			}
 			Text {
-				anchors.horizontalCenter: parent.horizontalCenter
-                		text: label
-                		color: root.walColor8
-                		font.pixelSize: 11
-                		font.family: "JetBrainsMono Nerd Font"
+				width: stat.width
+				horizontalAlignment: Text.AlignHCenter
+				text: stat.hovered && stat.detail !== "" ? stat.detail : stat.label
+				color: stat.hovered ? stat.barColor : root.walColor8
+				font.pixelSize: stat.hovered ? 10 : 11
+				font.bold: stat.hovered
+				font.family: "JetBrainsMono Nerd Font"
+				lineHeight: 0.95
 			}
+		}
+		MouseArea {
+			id: statMa
+			anchors.fill: parent
+			hoverEnabled: true
+		}
+	}
+	component ModeChip: Rectangle {
+		id: chip
+		property string icon
+		property string label
+		property string sub
+		property bool active: false
+		property color accent: root.walColor5
+		signal toggled()
+		signal scrolled(int step)
+		Layout.fillWidth: true
+		Layout.fillHeight: true
+		radius: 12
+		color: active
+			? Qt.rgba(accent.r, accent.g, accent.b, 0.22)
+			: (chipMa.containsMouse ? root.hover(0.06) : "transparent")
+		border.width: active ? 1 : 0
+		border.color: Qt.rgba(accent.r, accent.g, accent.b, 0.55)
+		Behavior on color { ColorAnimation { duration: 200 } }
+		RowLayout {
+			anchors.fill: parent
+			anchors.leftMargin: 12
+			anchors.rightMargin: 12
+			spacing: 10
+			Text {
+				text: chip.icon
+				color: chip.active ? chip.accent : root.walColor8
+				font.pixelSize: 20
+				font.family: "JetBrainsMono Nerd Font"
+				Behavior on color { ColorAnimation { duration: 200 } }
+			}
+			ColumnLayout {
+				Layout.fillWidth: true
+				spacing: 1
+				Text {
+					text: chip.label
+					color: root.walForeground
+					font.pixelSize: 12
+					font.bold: true
+					font.family: "JetBrainsMono Nerd Font"
+				}
+				Text {
+					text: chip.sub
+					color: root.walColor8
+					font.pixelSize: 9
+					font.family: "JetBrainsMono Nerd Font"
+					elide: Text.ElideRight
+					Layout.fillWidth: true
+				}
+			}
+		}
+		MouseArea {
+			id: chipMa
+			anchors.fill: parent
+			hoverEnabled: true
+			cursorShape: Qt.PointingHandCursor
+			onClicked: chip.toggled()
+			onWheel: function(wheel) { chip.scrolled(wheel.angleDelta.y > 0 ? 1 : -1) }
 		}
 	}
 	component PowerBtn: Rectangle {
@@ -941,7 +1323,7 @@ Process {
         	width: 40
         	height: 40
         	radius: 10
-        	color: powerMa.containsMouse ? Qt.rgba(1,1,1,0.1) : "transparent"
+        	color: powerMa.containsMouse ? root.hover(0.1) : "transparent"
 		Behavior on color { 
 			ColorAnimation { 
 				duration: 150 
@@ -959,7 +1341,7 @@ Process {
             		anchors.fill: parent
             		hoverEnabled: true
            		cursorShape: Qt.PointingHandCursor
-            		onClicked: cmdProc.running = true
+            		onClicked: { root.dashboardVisible = false; Quickshell.execDetached(["bash", "-c", cmd]) }
 		}
 		Process {
 			id: cmdProc
@@ -982,8 +1364,8 @@ Process {
             		var h = hours < 10 ? '0' + hours : hours
             		var m = minutes < 10 ? '0' + minutes : minutes
             		var s = seconds < 10 ? '0' + seconds : seconds
-            		timeDisplay.text = h + ':' + m + ':' + s + ' ' + ampm
-            		dateDisplay.text = Qt.formatDate(now, "dd.MM.yyyy, dddd")
+            		// clock moved to the calendar panel (v9)
+            		
 		}
 	}
 	Timer {
@@ -1004,23 +1386,42 @@ Process {
 	}
 	Process {
 		id: cpuProc
-        	command: ["bash", "-c", "top -bn1 | grep 'Cpu(s)' | awk '{print int($2 + $4)}'"]
-		stdout: SplitParser { 
-			onRead: data => dashboard.cpuVal = parseInt(data) || 0 
+		command: ["bash", "-c", "c=$(top -bn1 | awk '/Cpu\\(s\\)/ {print int($2 + $4)}'); n=$(nproc); f=$(awk '/^cpu MHz/ {s+=$4; k++} END {if (k) printf \"%.1f\", s/k/1000}' /proc/cpuinfo); echo \"${c:-0}|$n|${f:-?}\""]
+		stdout: SplitParser {
+			onRead: data => {
+				var p = data.trim().split("|")
+				dashboard.cpuVal = parseInt(p[0]) || 0
+				var n = parseInt(p[1]) || 1
+				dashboard.cpuUsed = (dashboard.cpuVal * n / 100).toFixed(1) + " cores"
+				dashboard.cpuDetail = "of " + n + " · " + p[2] + " GHz"
+			}
 		}
 	}
 	Process {
 		id: ramProc
-        	command: ["bash", "-c", "free | awk '/Mem:/ {printf \"%.0f\", $3/$2*100}'"]
-        	stdout: SplitParser { 
-			onRead: data => dashboard.ramVal = parseInt(data) || 0 
+		command: ["bash", "-c", "free -b | awk '/Mem:/ {printf \"%.0f|%.1f|%.1f\", $3/$2*100, $3/1073741824, $2/1073741824}'"]
+		stdout: SplitParser {
+			onRead: data => {
+				var p = data.trim().split("|")
+				dashboard.ramVal = parseInt(p[0]) || 0
+				dashboard.ramUsed = p[1] + " GiB"
+				dashboard.ramDetail = "of " + p[2] + " GiB"
+			}
 		}
 	}
 	Process {
 		id: diskProc
-		command: ["bash", "-c", "df / | awk 'NR==2 {gsub(/%/,\"\"); print $5}'"]
-		stdout: SplitParser { 
-			onRead: data => dashboard.diskVal = parseInt(data) || 0 
+		// every real block device once (/ and /nix/store share one), boot/vfat and tmpfs skipped
+		command: ["bash", "-c", "df -B1 -x tmpfs -x devtmpfs -x efivarfs -x vfat -x overlay -x squashfs --output=source,size,used,target 2>/dev/null | awk 'NR>1 && $1 ~ /^\\/dev\\// && !seen[$1]++ {s+=$2; u+=$3; n=$4; if (n==\"/\") n=\"root\"; else sub(/.*\\//,\"\",n); d=d sprintf(\"%s%s %.0fG\", (d==\"\"?\"\":\" · \"), n, $3/1e9); k++} END {printf \"%.0f|%.0f|%.0f|%d|%s\", (s?u/s*100:0), u/1e9, s/1e9, k, d}'"]
+		stdout: SplitParser {
+			onRead: data => {
+				var p = data.trim().split("|")
+				dashboard.diskVal = parseInt(p[0]) || 0
+				var used = parseInt(p[1]) || 0, total = parseInt(p[2]) || 0, count = parseInt(p[3]) || 1
+				function fmt(gb) { return gb >= 1000 ? (gb / 1000).toFixed(2) + " TB" : gb + " GB" }
+				dashboard.diskUsed = fmt(used)
+				dashboard.diskDetail = "of " + fmt(total) + (count > 1 ? " · " + count + " disks\n" + (p[4] || "") : "")
+			}
 		}
 	}
 	Process {
@@ -1064,14 +1465,29 @@ Process {
 		id: volProc
 		command: ["bash", "-c", "wpctl get-volume @DEFAULT_AUDIO_SINK@ | awk '{printf \"%.0f\", $2*100}'"]
         	stdout: SplitParser { 
-			onRead: data => dashboard.volVal = parseInt(data) || 0 
+			onRead: data => { if (Date.now() > dashboard.volHold) dashboard.volVal = parseInt(data) || 0 } 
 		}
 	}
 	Process {
+		id: volStepProc
+		stdout: SplitParser { onRead: data => { var v = parseInt(data); if (!isNaN(v)) dashboard.volVal = v } }
+		onExited: dashboard.flushVol()
+	}
+	Process {
+		id: brightStepProc
+		stdout: SplitParser {
+			onRead: data => {
+				var f = data.split(",")
+				if (f.length > 3) { var v = parseInt(f[3]); if (!isNaN(v)) dashboard.brightVal = Math.max(1, v) }
+			}
+		}
+		onExited: dashboard.flushBright()
+	}
+	Process {
 		id: brightProc
-        	command: ["bash", "-c", "brightnessctl -m | awk -F, '{gsub(/%/,\"\"); print $4}'"]
+        command: ["bash", "-c", "$HOME/.config/scripts/brightness.sh get"]
 		stdout: SplitParser { 
-			onRead: data => dashboard.brightVal = parseInt(data) || 100 
+			onRead: data => { if (Date.now() > dashboard.brightHold) dashboard.brightVal = parseInt(data) || 100 } 
 		}
 	}
 	Process {

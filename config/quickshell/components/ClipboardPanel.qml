@@ -11,14 +11,14 @@ PanelWindow {
     visible: true
     exclusionMode: ExclusionMode.Ignore
     anchors {
-        top: true
-        right: true
-        bottom: true
+    	top: true
+    	right: true
+    	bottom: true
     }
     margins {
-        top: 40
-        bottom: 10
-        right: root.clipboardVisible ? 6 : -420
+    	top: (10) + root.barInsetTop
+    	bottom: (root.barInsetBottom + 8)
+    	right: (root.clipboardVisible ? 6 : -420) + root.barInsetRight
     }
     implicitWidth: 390
     color: "transparent"
@@ -312,7 +312,7 @@ border.width: 1
                     Layout.fillWidth: true
                     height: 36
                     radius: 10
-                    color: Qt.rgba(0, 0, 0, 0.4)
+                    color: root.card(0.4)
 
                     Row {
                         anchors.fill: parent
@@ -333,7 +333,7 @@ border.width: 1
                                 radius: 8
                                 color: active
                                     ? Qt.rgba(root.walColor5.r, root.walColor5.g, root.walColor5.b, 0.25)
-                                    : tabHovMa.containsMouse ? Qt.rgba(1,1,1,0.05) : "transparent"
+                                    : tabHovMa.containsMouse ? root.hover(0.05) : "transparent"
                                 Behavior on color { ColorAnimation { duration: 150 } }
 
                                 Row {
@@ -375,7 +375,7 @@ border.width: 1
                     Layout.fillWidth: true
                     height: 38
                     radius: 10
-                    color: Qt.rgba(0, 0, 0, 0.5)
+                    color: root.card(0.5)
                     border.width: searchField.activeFocus ? 1 : 0
                     border.color: root.walColor5
 
@@ -443,7 +443,7 @@ border.width: 1
                             visible: searchField.text.length > 0
                             width: 22; height: 22; radius: 11
                             color: clrHovMa.containsMouse
-                                ? Qt.rgba(1,1,1,0.1) : "transparent"
+                                ? root.hover(0.1) : "transparent"
                             Behavior on color { ColorAnimation { duration: 100 } }
                             Text {
                                 anchors.centerIn: parent; text: "󰅖"
@@ -513,7 +513,7 @@ border.width: 1
                                 clip: true
                                 color: isFoc
                                     ? Qt.rgba(root.walColor5.r, root.walColor5.g, root.walColor5.b, 0.18)
-                                    : isHov ? Qt.rgba(1,1,1,0.06) : Qt.rgba(0,0,0,0.25)
+                                    : isHov ? root.hover(0.06) : root.card(0.25)
                                 border.width: isFoc ? 1 : 0
                                 border.color: Qt.rgba(root.walColor5.r, root.walColor5.g, root.walColor5.b, 0.5)
                                 Behavior on color { ColorAnimation { duration: 100 } }
@@ -631,7 +631,7 @@ border.width: 1
                                 radius: 10
                                 color: isFoc
                                     ? Qt.rgba(root.walColor5.r, root.walColor5.g, root.walColor5.b, 0.2)
-                                    : isHov ? Qt.rgba(1,1,1,0.08) : "transparent"
+                                    : isHov ? root.hover(0.08) : "transparent"
                                 border.width: isFoc ? 1 : 0
                                 border.color: Qt.rgba(root.walColor5.r, root.walColor5.g, root.walColor5.b, 0.5)
                                 Behavior on color { ColorAnimation { duration: 100 } }
@@ -720,7 +720,7 @@ border.width: 1
 
                             color: isFoc
                                 ? Qt.rgba(root.walColor5.r, root.walColor5.g, root.walColor5.b, 0.18)
-                                : isHov ? Qt.rgba(1,1,1,0.06) : Qt.rgba(0,0,0,0.2)
+                                : isHov ? root.hover(0.06) : root.card(0.2)
                             border.width: isFoc ? 1 : 0
                             border.color: Qt.rgba(root.walColor5.r, root.walColor5.g, root.walColor5.b, 0.5)
                             Behavior on color { ColorAnimation { duration: 100 } }
@@ -744,7 +744,7 @@ border.width: 1
                                     height: 18
                                     width: catLbl.implicitWidth + 12
                                     radius: 6
-                                    color: Qt.rgba(0,0,0,0.3)
+                                    color: root.card(0.3)
                                     Text {
                                         id: catLbl
                                         anchors.centerIn: parent
@@ -791,7 +791,7 @@ border.width: 1
                     Layout.fillWidth: true
                     height: 28
                     radius: 8
-                    color: Qt.rgba(0, 0, 0, 0.3)
+                    color: root.card(0.3)
 
                     RowLayout {
                         anchors.fill: parent

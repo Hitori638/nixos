@@ -11,16 +11,16 @@ PanelWindow {
 	screen: Quickshell.screens.length > 0 ? (root.focusedScreen ?? Quickshell.screens[0]) : undefined
     	visible: true
     	exclusionMode: ExclusionMode.Ignore
-    	anchors { 
-		top: true; 
-		bottom: true; 
-		left: true 
-	}
-	margins { 
-		top: 40; 
-		bottom: 10; 
-		left: root.launcherVisible ? 6 : -450 
-	}
+    	anchors {
+    		top: true
+    		bottom: true
+    		left: true
+    	}
+    	margins {
+    		top: (10) + root.barInsetTop
+    		bottom: (root.barInsetBottom + 8)
+    		left: (root.launcherVisible ? 6 : -450) + root.barInsetLeft
+    	}
 	implicitWidth: 420
     	color: "transparent"
     	focusable: true
@@ -45,7 +45,7 @@ PanelWindow {
 			Rectangle {
 				Layout.fillWidth: true
 				Layout.preferredHeight: 42
-				color: Qt.rgba(0, 0, 0, 0.5)
+				color: root.card(0.5)
 				radius: 12
 				RowLayout {
 					anchors.fill: parent
@@ -148,7 +148,7 @@ PanelWindow {
 					Rectangle {
 						Layout.fillWidth: true
                         			Layout.preferredHeight: 42
-                        			color: Qt.rgba(0, 0, 0, 0.5)
+                        			color: root.card(0.5)
                         			radius: 12
                         			border.width: searchInput.activeFocus ? 1 : 0
                         			border.color: root.walColor5
@@ -241,7 +241,7 @@ PanelWindow {
 					Rectangle {
 						Layout.fillWidth: true
                         			Layout.fillHeight: true
-                        			color: Qt.rgba(0, 0, 0, 0.5)
+                        			color: root.card(0.5)
                         			radius: 15
                         			clip: true
 						ListView {
@@ -306,7 +306,7 @@ PanelWindow {
 									if (index === root.selectedIndex)
                                         				return Qt.rgba(root.walColor5.r, root.walColor5.g, root.walColor5.b, 0.2)
                                     					if (appItemMouse.containsMouse)
-                                        				return Qt.rgba(1, 1, 1, 0.05)
+                                        				return root.hover(0.05)
                                     					return "transparent"
 								}
 								Behavior on color { 
@@ -335,7 +335,7 @@ PanelWindow {
 										width: 32
                                         					height: 32
                                         					radius: 8
-                                        					color: Qt.rgba(0, 0, 0, 0.2)
+                                        					color: root.card(0.2)
 										Image {
 											anchors.centerIn: parent
                                             						width: 22
@@ -349,6 +349,7 @@ PanelWindow {
 											fillMode: Image.PreserveAspectFit
                                             						asynchronous: true
                                             						cache: true
+											onStatusChanged: if (status === Image.Error) { var alt = root.iconFor(modelData.name); if (alt && alt !== source) source = alt }
 										}
 									}
 									ColumnLayout {
@@ -416,7 +417,7 @@ PanelWindow {
 					Rectangle {
 						Layout.fillWidth: true
                         			Layout.preferredHeight: 28
-                        			color: Qt.rgba(0, 0, 0, 0.5)
+                        			color: root.card(0.5)
                         			radius: 10
 						RowLayout {
 							anchors.fill: parent
@@ -476,7 +477,7 @@ PanelWindow {
 					Rectangle {
 						Layout.fillWidth: true
                         			Layout.preferredHeight: 42
-                        			color: Qt.rgba(0, 0, 0, 0.5)
+                        			color: root.card(0.5)
                         			radius: 12
                         			border.width: wallSearchInput.activeFocus ? 1 : 0
                         			border.color: root.walColor13
@@ -578,7 +579,7 @@ PanelWindow {
 					Rectangle {
 						Layout.fillWidth: true
                         			Layout.fillHeight: true
-                        			color: Qt.rgba(0, 0, 0, 0.5)
+                        			color: root.card(0.5)
                         			radius: 15
                         			clip: true
 						GridView {
@@ -645,8 +646,8 @@ PanelWindow {
 										if (index === root.wallSelectedIndex)
 										return Qt.rgba(root.walColor13.r, root.walColor13.g, root.walColor13.b, 0.25)
                                         					if (wallItemMouse.containsMouse)
-                                            					return Qt.rgba(1, 1, 1, 0.08)
-                                        					return Qt.rgba(0, 0, 0, 0.2)
+                                            					return root.hover(0.08)
+                                        					return root.card(0.2)
 									}
 									border.width: {
 										if (modelData.path === root.currentWallpaper) return 2
@@ -793,7 +794,7 @@ PanelWindow {
 					Rectangle {
 						Layout.fillWidth: true
                         			Layout.preferredHeight: 28
-                        			color: Qt.rgba(0, 0, 0, 0.5)
+                        			color: root.card(0.5)
                         			radius: 10
 						RowLayout {
 							anchors.fill: parent

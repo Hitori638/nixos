@@ -8,6 +8,14 @@ import QtQuick.Window
 // Left-click  -> start / pause
 // Right-click -> reset current phase
 // Scroll      -> adjust minutes for the current phase while paused
+//
+// Cycle: work -> short break -> work -> short break -> work -> LONG break,
+// then repeat. (sessionsBeforeLongBreak work sessions per cycle.)
+//
+// On phase end: the small window shakes + fuse-flashes, a synthesized
+// explosion sound plays (see NotifyProxy.playExplosion in main.py), and a
+// fullscreen "blast" overlay window (flash + shockwave rings + debris +
+// BOOM text) spawns and self-destructs a moment later.
 
 Window {
     id: win
@@ -23,8 +31,10 @@ Window {
     flags: Qt.FramelessWindowHint
 
     // ---- Tunables -------------------------------------------------------
-    property int workMinutes: 25
+    property int workMinutes: 30
     property int breakMinutes: 5
+    property int longBreakMinutes: 15
+    property int sessionsBeforeLongBreak: 3
     property bool festiveHat: false
 
     // ---- Catppuccin Mocha palette ----------------------------------------
@@ -41,11 +51,16 @@ Window {
 
     // ---- State ------------------------------------------------------------
     property bool isBreak: false
+    property bool isLongBreak: false
+    // Work sessions finished in the current cycle (0 .. sessionsBeforeLongBreak-1)
+    property int completedSessions: 0
     property bool running: false
     property int remainingSeconds: workMinutes * 60
 
     function phaseTotal() {
-        return (isBreak ? breakMinutes : workMinutes) * 60
+        if (!isBreak)
+            return workMinutes * 60
+        return (isLongBreak ? longBreakMinutes : breakMinutes) * 60
     }
 
     function fmt(s) {
@@ -59,6 +74,33 @@ Window {
         running = false
     }
 
+    // Advance to the next phase in the work/short/long cycle.
+    function nextPhase() {
+        if (!isBreak) {
+            // A work session just finished.
+            completedSessions += 1
+            if (completedSessions >= sessionsBeforeLongBreak) {
+                isLongBreak = true
+                completedSessions = 0
+            } else {
+                isLongBreak = false
+            }
+            isBreak = true
+        } else {
+            // A break just finished — back to work.
+            isBreak = false
+            isLongBreak = false
+        }
+        remainingSeconds = phaseTotal()
+    }
+
+    function statusLabel() {
+        if (isBreak)
+            return isLongBreak ? "LONG BREAK" : "BREAK"
+        var session = (completedSessions + 1) + "/" + sessionsBeforeLongBreak
+        return running ? "FOCUS · " + session : "PAUSED " + session + " · scroll to set"
+    }
+
     Timer {
         id: tick
         interval: 1000
@@ -68,10 +110,12 @@ Window {
             if (win.remainingSeconds > 0) {
                 win.remainingSeconds -= 1
             } else {
-                win.isBreak = !win.isBreak
-                win.remainingSeconds = win.phaseTotal()
+                win.nextPhase()
                 fuseFlash.start()
-                notifyProxy.notifyPhaseChange(win.isBreak)
+                shakeAnim.start()
+                notifyProxy.notifyPhaseChange(win.isBreak, win.isLongBreak)
+                notifyProxy.playExplosion()
+                notifyProxy.spawnBlast()
             }
         }
     }
@@ -81,6 +125,17 @@ Window {
         loops: 2
         NumberAnimation { target: flashOverlay; property: "opacity"; to: 0.55; duration: 120 }
         NumberAnimation { target: flashOverlay; property: "opacity"; to: 0.0; duration: 220 }
+    }
+
+    // Small jitter of the window's own content when the fuse hits — kept
+    // internal to the render surface (not the actual OS window position),
+    // since window managers like Hyprland tile/ignore direct x/y moves.
+    SequentialAnimation {
+        id: shakeAnim
+        loops: 3
+        NumberAnimation { target: content; property: "x"; to: -6; duration: 40 }
+        NumberAnimation { target: content; property: "x"; to: 6; duration: 80 }
+        NumberAnimation { target: content; property: "x"; to: 0; duration: 40 }
     }
 
     Item {
@@ -103,10 +158,12 @@ Window {
         onWheel: function(wheel) {
             if (win.running) return
             var delta = wheel.angleDelta.y > 0 ? 1 : -1
-            if (win.isBreak) {
-                win.breakMinutes = Math.max(1, win.breakMinutes + delta)
-            } else {
+            if (!win.isBreak) {
                 win.workMinutes = Math.max(1, win.workMinutes + delta)
+            } else if (win.isLongBreak) {
+                win.longBreakMinutes = Math.max(1, win.longBreakMinutes + delta)
+            } else {
+                win.breakMinutes = Math.max(1, win.breakMinutes + delta)
             }
             win.remainingSeconds = win.phaseTotal()
         }
@@ -204,7 +261,7 @@ Window {
             anchors.right: parent.right
             anchors.top: parent.top
             anchors.margins: 7
-            color: win.red
+            color: win.isLongBreak ? win.green : win.red
             SequentialAnimation on opacity {
                 running: win.running
                 loops: Animation.Infinite
@@ -224,7 +281,7 @@ Window {
             Text {
                 anchors.centerIn: parent
                 text: win.fmt(win.remainingSeconds)
-                color: win.red
+                color: win.isBreak ? win.green : win.red
                 font.family: "monospace"
                 font.pixelSize: 32
                 font.bold: true
@@ -235,7 +292,7 @@ Window {
             anchors.bottom: parent.bottom
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottomMargin: 4
-            text: win.isBreak ? "BREAK" : (win.running ? "FOCUS" : "PAUSED · scroll to set")
+            text: win.statusLabel()
             color: win.textCol
             font.pixelSize: 10
             font.letterSpacing: 1
@@ -281,6 +338,6 @@ Window {
 
     } // content
 
-    // Bridge to Python for desktop notifications on phase change.
-    // Connected from main.py via context property `notifyProxy`.
+    // Bridge to Python for desktop notifications + explosion sound on
+    // phase change. Connected from main.py via context property `notifyProxy`.
 }

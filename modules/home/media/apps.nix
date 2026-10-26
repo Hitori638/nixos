@@ -9,7 +9,6 @@
     imagemagick
     evince
     vesktop
-    delfin
     telegram-desktop
     transmission_4-gtk
     video-downloader

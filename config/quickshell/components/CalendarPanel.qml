@@ -8,14 +8,18 @@ PanelWindow {
     	screen: Quickshell.screens.length > 0 ? (root.focusedScreen ?? Quickshell.screens[0]) : undefined
     	visible: true
     	exclusionMode: ExclusionMode.Ignore
-    	anchors { 
-		top: true; 
-		left: true 
-	}
+    	anchors {
+    		bottom: root.barPosition !== "top"
+    		left: root.barStyle !== "i3"
+    		right: root.barStyle === "i3"
+    		top: root.barPosition === "top"
+    	}
     	margins {
-		top: 40
-		left: root.calendarVisible ? 6 : -(implicitWidth + 20)
-	}
+    		bottom: root.calendarVisible ? root.barGapV : -350
+    		left: (root.calendarVisible ? 6 : -(implicitWidth + 20)) + root.barInsetLeft
+    		right: (root.calendarVisible ? 6 : -(implicitWidth + 20)) + root.barInsetRight
+    		top: root.calendarVisible ? root.barGapV : -350
+    	}
     	implicitWidth: 312
     	implicitHeight: card.height + 16
     	color: "transparent"
@@ -23,6 +27,7 @@ PanelWindow {
     	WlrLayershell.keyboardFocus: root.calendarVisible
 	? WlrKeyboardFocus.OnDemand
         : WlrKeyboardFocus.None
+	Behavior on margins.right { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
 	Behavior on margins.left {
 		NumberAnimation { 
 			duration: 300; 
@@ -384,7 +389,7 @@ border.width: 1
 				spacing: 4
 				Rectangle {
 					Layout.fillWidth: true; height: 32; radius: 10
-                    			color: Qt.rgba(0, 0, 0, 0.2)
+                    			color: root.card(0.2)
                     			Row {
 						anchors.fill: parent; anchors.margins: 3; spacing: 3
 						Rectangle {
@@ -783,7 +788,7 @@ border.width: 1
 					Layout.fillWidth: true; 
 					height: 24; 
 					radius: 8; 
-					color: Qt.rgba(0, 0, 0, 0.3)
+					color: root.card(0.3)
 					RowLayout {
 						anchors.fill: parent; 
 						anchors.leftMargin: 10;

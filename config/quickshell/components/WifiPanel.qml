@@ -10,14 +10,16 @@ PanelWindow {
 	screen: Quickshell.screens.length > 0 ? (root.focusedScreen ?? Quickshell.screens[0]) : undefined
 	visible: true
     	exclusionMode: ExclusionMode.Ignore
-    	anchors { 
-		top: true; 
-		right: true 
-	}
-	margins { 
-		top: 40; 
-		right: root.wifiVisible ? 6 : -350 
-	}
+    	anchors {
+    		bottom: root.barPosition !== "top"
+    		right: true
+    		top: root.barPosition === "top"
+    	}
+    	margins {
+    		bottom: root.wifiVisible ? root.barGapV : -350
+    		right: (root.wifiVisible ? 6 : -350) + root.barInsetRight
+    		top: root.wifiVisible ? root.barGapV : -350
+    	}
     	implicitHeight: 420
     	implicitWidth: 320
     	color: "transparent"
@@ -106,7 +108,7 @@ border.width: 1
         Layout.fillWidth: true
         Layout.preferredHeight: 50
         radius: 12
-        color: Qt.rgba(0, 0, 0, 0.5)
+        color: root.card(0.5)
         visible: root.ethConnected
         RowLayout {
             anchors.fill: parent
@@ -144,7 +146,7 @@ border.width: 1
 					Layout.fillWidth: true
                     			Layout.preferredHeight: 50
                     			radius: 12
-                    			color: Qt.rgba(0, 0, 0, 0.5)
+                    			color: root.card(0.5)
                     			visible: root.wifiCurrentSSID !== ""
 					RowLayout {
 						anchors.fill: parent
@@ -179,7 +181,7 @@ border.width: 1
 							width: 28
                             				height: 28
                             				radius: 8
-                            				color: wifiDiscMa.containsMouse ? Qt.rgba(1,1,1,0.1) : "transparent"
+                            				color: wifiDiscMa.containsMouse ? root.hover(0.1) : "transparent"
 							Text {
 								anchors.centerIn: parent
                                 				text: "󰅖"
@@ -201,7 +203,7 @@ border.width: 1
 					Layout.fillWidth: true
                     			Layout.preferredHeight: 36
                     			radius: 10
-                    			color: Qt.rgba(0, 0, 0, 0.5)
+                    			color: root.card(0.5)
                     			visible: root.wifiPasswordSSID !== ""
 					RowLayout {
 						anchors.fill: parent
@@ -291,7 +293,7 @@ border.width: 1
 						width: 24
                         			height: 24
                         			radius: 6
-                        			color: wifiRefreshMa.containsMouse ? Qt.rgba(1,1,1,0.1) : "transparent"
+                        			color: wifiRefreshMa.containsMouse ? root.hover(0.1) : "transparent"
 						Text {
 							anchors.centerIn: parent
                             				text: root.wifiScanning ? "󰑓" : "󰑐"
@@ -313,7 +315,7 @@ border.width: 1
 				Rectangle {
 					Layout.fillWidth: true
                     			Layout.fillHeight: true
-                    			color: Qt.rgba(0, 0, 0, 0.5)
+                    			color: root.card(0.5)
                     			radius: 12
                     			clip: true
 					ListView {
@@ -326,7 +328,7 @@ border.width: 1
 							width: parent ? parent.width : 0
                             				height: 44
                             				radius: 10
-                            				color: wifiNetMa.containsMouse ? Qt.rgba(1, 1, 1, 0.08) : "transparent"
+                            				color: wifiNetMa.containsMouse ? root.hover(0.08) : "transparent"
                             				Behavior on color { 
 								ColorAnimation { 
 									duration: 120 

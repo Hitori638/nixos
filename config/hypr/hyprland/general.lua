@@ -19,8 +19,8 @@ hl.config({
 
 hl.config({
 	general = {
-		gaps_in = 0,
-		gaps_out = 0,
+		gaps_in = 4,
+		gaps_out = 4,
 		border_size = 1,
 		["col.active_border"] = "rgba(ffffffaa)",
 		["col.inactive_border"] = "rgba(666666aa)",
@@ -30,8 +30,8 @@ hl.config({
 		layout = "dwindle",
 		snap = {
 			enabled = true,
-			window_gap = 2,
-			monitor_gap = 2,
+			window_gap = 0,
+			monitor_gap = 0,
 			respect_gaps = true,
 		},
 	},
@@ -50,8 +50,8 @@ hl.config({
 
 hl.config({
 	decoration = {
-		rounding = 0,
-		rounding_power = 0,
+		rounding = 6,
+		rounding_power = 6,
 		shadow = {
 			enabled = true,
 			range = 4,

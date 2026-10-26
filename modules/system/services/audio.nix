@@ -19,4 +19,14 @@
       }
     ];
   };
+  services.pipewire.wireplumber.extraConfig."51-chu2-soft-volume" = {
+    "monitor.alsa.rules" = [
+      {
+        matches = [{"device.name" = "~alsa_card.usb-KTMicro_Chu2.*";}];
+        actions.update-props = {
+          "api.alsa.soft-mixer" = true;
+        };
+      }
+    ];
+  };
 }

@@ -10,16 +10,16 @@ PanelWindow {
     	screen: Quickshell.screens.length > 0 ? (root.focusedScreen ?? Quickshell.screens[0]) : undefined
     	visible: true
     	exclusionMode: ExclusionMode.Ignore
-    	anchors { 
-		top: true; 
-		right: true; 
-		bottom: true 
-	}
-	margins {
-		top: 40
-        	bottom: 10
-        	right: root.notifCenterVisible ? 6 : -370
-	}
+    	anchors {
+    		top: true
+    		right: true
+    		bottom: true
+    	}
+    	margins {
+    		top: (10) + root.barInsetTop
+    		bottom: (root.barInsetBottom + 8)
+    		right: (root.notifCenterVisible ? 6 : -370) + root.barInsetRight
+    	}
 	implicitWidth: 340
     	color: "transparent"
     	focusable: true
@@ -229,7 +229,7 @@ border.width: 1
 					Rectangle {
 						Layout.fillWidth: true
                     				Layout.fillHeight: true
-                    				color: Qt.rgba(0, 0, 0, 0.3)
+                    				color: root.card(0.3)
                     				radius: 14
                     				clip: true
 						Column {
@@ -274,8 +274,8 @@ border.width: 1
                             					height: notifCol.implicitHeight + 20
                             					radius: 12
                             					color: itemMa.containsMouse
-									? Qt.rgba(1, 1, 1, 0.06)
-									: Qt.rgba(0, 0, 0, 0.25)
+									? root.hover(0.06)
+									: root.card(0.25)
 									Behavior on color { 
 										ColorAnimation { 
 											duration: 120 
@@ -419,7 +419,7 @@ border.width: 1
 								Layout.fillWidth: true
                     						height: 24
                     						radius: 8
-                    						color: Qt.rgba(0, 0, 0, 0.3)
+                    						color: root.card(0.3)
 								RowLayout {
 									anchors.fill: parent
                         						anchors.leftMargin: 10

@@ -4,5 +4,6 @@
     ./mpv.nix
     ./mpd-client.nix
     ./apps.nix
+    ./mime.nix
   ];
 }

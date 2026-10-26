@@ -10,13 +10,15 @@ PanelWindow {
 	screen: Quickshell.screens.length > 0 ? (root.focusedScreen ?? Quickshell.screens[0]) : undefined
     	visible: true
     	exclusionMode: ExclusionMode.Ignore
-	anchors { 
-		top: true; 
-		right: true 
+	anchors {
+		bottom: root.barPosition !== "top"
+		right: true
+		top: root.barPosition === "top"
 	}
-	margins { 
-		top: 40; 
-		right: root.btVisible ? 6 : -350 
+	margins {
+		bottom: root.btVisible ? root.barGapV : -350
+		right: (root.btVisible ? 6 : -350) + root.barInsetRight
+		top: root.btVisible ? root.barGapV : -350
 	}
 	implicitHeight: 460
     	implicitWidth: 320
@@ -112,7 +114,7 @@ border.width: 1
 				Rectangle {
 					Layout.fillWidth: true
                     			Layout.preferredHeight: 180
-                    			color: Qt.rgba(0, 0, 0, 0.5)
+                    			color: root.card(0.5)
                     			radius: 12
                     			clip: true
                     			visible: root.btEnabled
@@ -126,7 +128,7 @@ border.width: 1
 							width: parent ? parent.width : 0
                             				height: 48
                             				radius: 10
-                            				color: btPairedMa.containsMouse ? Qt.rgba(1, 1, 1, 0.08) : "transparent"
+                            				color: btPairedMa.containsMouse ? root.hover(0.08) : "transparent"
                             				Behavior on color { 
 								ColorAnimation { 
 									duration: 120 
@@ -170,7 +172,7 @@ border.width: 1
 									width: 28
                                     					height: 28
                                     					radius: 8
-                                    					color: btConnBtnMa.containsMouse ? Qt.rgba(1,1,1,0.1) : "transparent"
+                                    					color: btConnBtnMa.containsMouse ? root.hover(0.1) : "transparent"
 									Text {
 										anchors.centerIn: parent
 										text: modelData.connected ? "󰅖" : "󰐕"
@@ -195,7 +197,7 @@ border.width: 1
 									width: 28
 									height: 28
                                     					radius: 8
-                                    					color: btForgetMa.containsMouse ? Qt.rgba(1,1,1,0.1) : "transparent"
+                                    					color: btForgetMa.containsMouse ? root.hover(0.1) : "transparent"
 									Text {
 										anchors.centerIn: parent
                                         					text: "󰆴"
@@ -255,7 +257,7 @@ border.width: 1
 						width: 60
 						height: 24
 						radius: 6
-						color: btScanBtnMa.containsMouse ? Qt.rgba(root.walColor5.r, root.walColor5.g, root.walColor5.b, 0.2) : Qt.rgba(0, 0, 0, 0.5)
+						color: btScanBtnMa.containsMouse ? Qt.rgba(root.walColor5.r, root.walColor5.g, root.walColor5.b, 0.2) : root.card(0.5)
 						Text {
 							anchors.centerIn: parent
 							text: root.btScanning ? "Scanning" : "Scan"
@@ -281,7 +283,7 @@ border.width: 1
 				Rectangle {
 					Layout.fillWidth: true
                     			Layout.fillHeight: true
-                    			color: Qt.rgba(0, 0, 0, 0.5)
+                    			color: root.card(0.5)
                     			radius: 12
                     			clip: true
                     			visible: root.btEnabled
@@ -295,7 +297,7 @@ border.width: 1
 							width: parent ? parent.width : 0
                             				height: 44
                             				radius: 10
-                            				color: btAvailMa.containsMouse ? Qt.rgba(1, 1, 1, 0.08) : "transparent"
+                            				color: btAvailMa.containsMouse ? root.hover(0.08) : "transparent"
                             				Behavior on color { 
 								ColorAnimation { 
 									duration: 120 

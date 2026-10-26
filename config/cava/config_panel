@@ -1,0 +1,16 @@
+# Raw cava feed for the Quickshell music panel background.
+# Mono so bars run bass (left) -> treble (right); the first 4 bars drive the bass glow.
+[general]
+bars = 28
+framerate = 60
+autosens = 1
+
+[output]
+method = raw
+raw_target = /dev/stdout
+data_format = ascii
+ascii_max_range = 1000
+channels = mono
+
+[smoothing]
+noise_reduction = 55

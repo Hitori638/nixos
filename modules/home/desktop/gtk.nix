@@ -20,5 +20,9 @@
 
   home.packages = with pkgs; [
     adw-gtk3
+    (catppuccin-gtk.override {
+      accents = ["pink"];
+      variant = "latte";
+    })
   ];
 }

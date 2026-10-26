@@ -3,8 +3,8 @@
     enable = true;
     shellAliases = {
       btw = "echo i use nixos, btw";
-      nrs = "sudo nixos-rebuild switch --flake ~/nixos-dotfiles#nixos";
-      nuprs = "nix flake update && sudo nixos-rebuild switch --flake ~/nixos-dotfiles#nixos";
+      nrs = "sudo nixos-rebuild switch --impure --flake ~/nixos-dotfiles#nixos";
+      nuprs = "nix flake update && sudo nixos-rebuild switch --impure --flake ~/nixos-dotfiles#nixos";
       gnrs = "git add . && git commit -m \"update\" && nrs";
       ls = "eza --icons";
       ll = "eza -l --icons";

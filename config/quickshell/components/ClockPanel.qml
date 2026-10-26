@@ -11,10 +11,17 @@ PanelWindow {
 	screen: Quickshell.screens.length > 0 ? (root.focusedScreen ?? Quickshell.screens[0]) : undefined
 	visible: true
 	exclusionMode: ExclusionMode.Ignore
-	anchors { top: true; left: true }
+	anchors {
+		bottom: root.barPosition !== "top"
+		left: root.barStyle !== "i3"
+		right: root.barStyle === "i3"
+		top: root.barPosition === "top"
+	}
 	margins {
-		top: 40
-		left: root.clockPanelVisible ? 6 : -(implicitWidth + 20)
+		bottom: root.clockPanelVisible ? root.barGapV : -350
+		left: (root.clockPanelVisible ? 6 : -(implicitWidth + 20)) + root.barInsetLeft
+		right: (root.clockPanelVisible ? 6 : -(implicitWidth + 20)) + root.barInsetRight
+		top: root.clockPanelVisible ? root.barGapV : -350
 	}
 	implicitWidth: 300
 	implicitHeight: card.implicitHeight + 16
@@ -23,6 +30,8 @@ PanelWindow {
 	WlrLayershell.keyboardFocus: root.clockPanelVisible
 		? WlrKeyboardFocus.OnDemand
 		: WlrKeyboardFocus.None
+
+	Behavior on margins.right { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
 
 	Behavior on margins.left {
 		NumberAnimation { duration: 300; easing.type: Easing.OutCubic }
@@ -218,7 +227,7 @@ border.width: 1
 				spacing: 0
 				Rectangle {
 					Layout.fillWidth: true; height: 34; radius: 10
-					color: Qt.rgba(0, 0, 0, 0.25)
+					color: root.card(0.25)
 					Row {
 						anchors.fill: parent; anchors.margins: 3; spacing: 3
 						Repeater {
@@ -229,7 +238,7 @@ border.width: 1
 								width: (parent.width - 12) / 4; height: parent.height; radius: 8
 								color: clockPanel.activeTab === index
 									? Qt.rgba(root.walColor5.r, root.walColor5.g, root.walColor5.b, 0.25)
-									: tabMa.containsMouse ? Qt.rgba(1,1,1,0.05) : "transparent"
+									: tabMa.containsMouse ? root.hover(0.05) : "transparent"
 								Behavior on color { ColorAnimation { duration: 150 } }
 								Text {
 									anchors.centerIn: parent; text: modelData
@@ -370,7 +379,7 @@ border.width: 1
 								required property var modelData
 								spacing: 3
 								Rectangle {
-									width: 62; height: 44; radius: 8; color: Qt.rgba(0,0,0,0.3)
+									width: 62; height: 44; radius: 8; color: root.card(0.3)
 									Text {
 										anchors.centerIn: parent
 										text: modelData.v < 10 ? "0" + modelData.v : "" + modelData.v
@@ -405,7 +414,7 @@ border.width: 1
 						Rectangle {
 							width: 76; height: 32; radius: 10
 							visible: clockPanel.timerState !== "idle"
-							color: rTMa.containsMouse ? Qt.rgba(root.walColor1.r,root.walColor1.g,root.walColor1.b,0.22) : Qt.rgba(0,0,0,0.3)
+							color: rTMa.containsMouse ? Qt.rgba(root.walColor1.r,root.walColor1.g,root.walColor1.b,0.22) : root.card(0.3)
 							Behavior on color { ColorAnimation { duration: 120 } }
 							Text { anchors.centerIn: parent; text: "Reset"; color: root.walColor1; font.pixelSize: 11; font.family: "JetBrainsMono Nerd Font" }
 							MouseArea { id: rTMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: clockPanel.resetTimer() }
@@ -477,7 +486,7 @@ border.width: 1
 						Repeater {
 							model: Math.min(clockPanel.swLaps.length, 3)
 							delegate: Rectangle {
-								width: parent ? parent.width : 0; height: 22; radius: 6; color: Qt.rgba(0,0,0,0.2)
+								width: parent ? parent.width : 0; height: 22; radius: 6; color: root.card(0.2)
 								Row {
 									anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10
 									Text { width: 28; text: "L"+clockPanel.swLaps[index].num; color: root.walColor8; font.pixelSize: 9; font.family: "JetBrainsMono Nerd Font"; anchors.verticalCenter: parent.verticalCenter }
@@ -492,7 +501,7 @@ border.width: 1
 						Rectangle {
 							width: 72; height: 32; radius: 10
 							visible: clockPanel.swElapsedMs > 0 && !clockPanel.swRunning
-							color: swRMa.containsMouse ? Qt.rgba(root.walColor1.r,root.walColor1.g,root.walColor1.b,0.22) : Qt.rgba(0,0,0,0.3)
+							color: swRMa.containsMouse ? Qt.rgba(root.walColor1.r,root.walColor1.g,root.walColor1.b,0.22) : root.card(0.3)
 							Behavior on color { ColorAnimation { duration: 120 } }
 							Text { anchors.centerIn: parent; text: "Reset"; color: root.walColor1; font.pixelSize: 11; font.family: "JetBrainsMono Nerd Font" }
 							MouseArea { id: swRMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: clockPanel.resetStopwatch() }
@@ -500,7 +509,7 @@ border.width: 1
 						Rectangle {
 							width: 72; height: 32; radius: 10
 							visible: clockPanel.swRunning
-							color: swLMa.containsMouse ? Qt.rgba(root.walColor4.r,root.walColor4.g,root.walColor4.b,0.22) : Qt.rgba(0,0,0,0.3)
+							color: swLMa.containsMouse ? Qt.rgba(root.walColor4.r,root.walColor4.g,root.walColor4.b,0.22) : root.card(0.3)
 							Behavior on color { ColorAnimation { duration: 120 } }
 							Text { anchors.centerIn: parent; text: "Lap"; color: root.walColor4; font.pixelSize: 11; font.family: "JetBrainsMono Nerd Font" }
 							MouseArea { id: swLMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: clockPanel.lapStopwatch() }
@@ -531,14 +540,14 @@ border.width: 1
 					Rectangle {
 						width: parent.width
 						height: Math.max(80, Math.min(200, clockPanel.alarms.length * 50 + 10))
-						radius: 12; color: Qt.rgba(0,0,0,0.3); clip: true
+						radius: 12; color: root.card(0.3); clip: true
 						ListView {
 							anchors.fill: parent; anchors.margins: 6; spacing: 4
 							boundsBehavior: Flickable.StopAtBounds; model: clockPanel.alarms
 							delegate: Rectangle {
 								required property var modelData
 								required property int index
-								width: parent?parent.width:0; height: 40; radius: 10; color: Qt.rgba(0,0,0,0.2)
+								width: parent?parent.width:0; height: 40; radius: 10; color: root.card(0.2)
 								RowLayout {
 									anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10; spacing: 8
 									Text {
@@ -576,7 +585,7 @@ border.width: 1
 					Rectangle {
 						width: parent.width
 						height: clockPanel.alarmAddMode ? 46 : 36
-						radius: 10; color: Qt.rgba(0,0,0,0.3); clip: true
+						radius: 10; color: root.card(0.3); clip: true
 						Behavior on height { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
 
 						RowLayout {
@@ -584,7 +593,7 @@ border.width: 1
 							visible: clockPanel.alarmAddMode
 							Text { text: "󰂟"; color: root.walColor5; font.pixelSize: 14; font.family: "JetBrainsMono Nerd Font" }
 							Rectangle {
-								width: 44; height: 28; radius: 6; color: Qt.rgba(0,0,0,0.3)
+								width: 44; height: 28; radius: 6; color: root.card(0.3)
 								TextInput {
 									anchors.centerIn: parent; width: parent.width-8
 									text: clockPanel.alarmHourInput; onTextChanged: clockPanel.alarmHourInput = text
@@ -596,7 +605,7 @@ border.width: 1
 							}
 							Text { text: ":"; color: root.walColor8; font.pixelSize: 14; font.family: "JetBrainsMono Nerd Font" }
 							Rectangle {
-								width: 44; height: 28; radius: 6; color: Qt.rgba(0,0,0,0.3)
+								width: 44; height: 28; radius: 6; color: root.card(0.3)
 								TextInput {
 									anchors.centerIn: parent; width: parent.width-8
 									text: clockPanel.alarmMinInput; onTextChanged: clockPanel.alarmMinInput = text
@@ -636,7 +645,7 @@ border.width: 1
 					}
 
 					Rectangle {
-						width: parent.width; height: 22; radius: 8; color: Qt.rgba(0,0,0,0.2)
+						width: parent.width; height: 22; radius: 8; color: root.card(0.2)
 						Row {
 							anchors.centerIn: parent; spacing: 5
 							Text { text: "󰔊"; color: root.walColor8; font.pixelSize: 10; font.family: "JetBrainsMono Nerd Font"; opacity: 0.6 }
@@ -646,7 +655,7 @@ border.width: 1
 					Item { height: 4 }
 				}
 				Rectangle {
-					Layout.fillWidth: true; height: 22; radius: 8; color: Qt.rgba(0,0,0,0.2)
+					Layout.fillWidth: true; height: 22; radius: 8; color: root.card(0.2)
 					RowLayout {
 						anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10
 						Text {

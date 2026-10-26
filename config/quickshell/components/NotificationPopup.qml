@@ -6,13 +6,15 @@ import QtQuick
 PanelWindow {
 	id: popup
 	screen: Quickshell.screens.length > 0 ? (root.focusedScreen ?? Quickshell.screens[0]) : undefined
-	anchors { 
-		top: true; 
-		right: true 
+	anchors {
+		bottom: root.barPosition !== "top"
+		right: true
+		top: root.barPosition === "top"
 	}
-	margins { 
-		top: 46; 
-		right: 12 
+	margins {
+		bottom: (root.barGapV + 6)
+		right: (12) + root.barInsetRight
+		top: (root.barGapV + 6)
 	}
 	implicitWidth: 300
     	implicitHeight: toastCol.height + 16

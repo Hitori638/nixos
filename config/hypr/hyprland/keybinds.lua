@@ -6,6 +6,9 @@ local exec = hl.dsp.exec_cmd
 hl.bind(mod .. " + Return", exec("kitty"), { description = "Launch terminal" })
 hl.bind(mod .. " + D", exec("qs ipc call launcher toggle"), { description = "Toggle app launcher" })
 hl.bind(mod .. " + A", exec("qs ipc call dashboard toggle"), { description = "Toggle dashboard" })
+hl.bind(mod .. " + B", exec("qs ipc call bar toggle"), { description = "Show / hide the bar" })
+hl.bind(mod .. " + SHIFT + B", exec("qs ipc call bar cycle"), { description = "Flip the bar top / bottom" })
+hl.bind(mod .. " + CTRL + B", exec("qs ipc call bar menu"), { description = "Bar style / theme menu" })
 hl.bind(mod .. " + M", exec("qs ipc call music toggle"), { description = "Toggle music panel" })
 hl.bind(mod .. " + W", exec("qs ipc call wallpaper toggle"), { description = "Toggle wallpaper picker" })
 hl.bind(mod .. " + N", exec("qs ipc call notifcenter toggle"), { description = "Toggle notification center" })
@@ -14,8 +17,8 @@ hl.bind(mod .. " + SHIFT + W", exec("~/.config/scripts/random-wallpaper.sh"), { 
 hl.bind(mod .. " + X", exec("hyprlock"), { description = "Lock screen" })
 hl.bind(
 	mod .. " + P",
-	exec("~/.config/scripts/toggle-pomodoro-bomb.sh"),
-	{ description = "Toggle pomodoro bomb timer" }
+	exec("qs ipc call pomodoro toggle"),
+	{ description = "Toggle pomodoro panel" }
 )
 
 -- ── Window State ──────────────────────────────────────────────
@@ -149,3 +152,8 @@ hl.bind(mod .. " + SHIFT + E", hl.dsp.exit(), { description = "Session: Exit Hyp
 -- ── Mouse ─────────────────────────────────────────────────────
 hl.bind(mod .. " + mouse:272", hl.dsp.window.drag(), { mouse = true, description = "Mouse: Drag window" })
 hl.bind(mod .. " + mouse:273", hl.dsp.window.resize(), { mouse = true, description = "Mouse: Resize window" })
+
+-- ── Notes + recorder (qs-update) ──────────────────────────────
+hl.bind(mod .. " + SHIFT + N", exec("qs ipc call notes toggle"), { description = "Toggle sticky notes" })
+hl.bind(mod .. " + SHIFT + R", exec("qs ipc call record menu"), { description = "Screen recorder menu" })
+hl.bind(mod .. " + TAB", exec("qs ipc call overview toggle"), { description = "Workspace overview" })

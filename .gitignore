@@ -2,6 +2,8 @@
 .env.*
 **/.env
 **/.env.*
+**/opencode/auth.json
+**/opencode/*.key
 /result
 commit.txt
 config/vesktop/*
@@ -12,3 +14,18 @@ config/quickshell/tmdb_account_id
 config/quickshell/tmdb_token
 config/quickshell/anilist_token
 config/quickshell/scripts/__pycache__
+config/quickshell/.qmlls.ini
+config/quickshell/components/JarvisPanel.qml
+config/quickshell/components/JarvisTimeline.qml
+config/scripts/jarvis.sh
+config/scripts/jarvis-mock.py
+docs/JARVIS-API.md
+
+# runtime / private
+config/quickshell/state/*
+!config/quickshell/state/.gitkeep
+config/quickshell/app_usage.json
+config/quickshell/assets/gifs/current.gif
+config/quickshell/assets/pfps/pfp.jpg
+__pycache__/
+*.pyc

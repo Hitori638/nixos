@@ -7,6 +7,7 @@
     figlet
     upower
     nitch
+    alsa-utils
     fastfetch
     brightnessctl
   ];

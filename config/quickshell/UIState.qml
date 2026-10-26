@@ -6,6 +6,8 @@ import QtQuick
 Singleton {
 	id: ui
 	property bool dndEnabled: false
+	property bool lightMode: false
+	property var pal: null          // current colour theme (set by shell.qml)
     	property string activeDropdown: ""
     	property var notifications: []
     	property int _nid: 0
