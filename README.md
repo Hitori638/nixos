@@ -12,6 +12,10 @@ A NixOS desktop built around **Hyprland** (configured in Lua) and a hand-written
 
 </div>
 
+https://github.com/user-attachments/assets/370773de-65d8-40f3-ad4d-80987ba59b45
+
+
+
 ---
 
 ## Contents
