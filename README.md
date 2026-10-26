@@ -299,7 +299,7 @@ qs ipc call randomwallpaper apply "<path>"
 Needs NixOS with flakes. The config assumes the user `alpha`; change it in `flake.nix`, `home.nix`, `modules/system/users.nix`, the MPD / Jellyfin services, `execs.lua` and the SSH config if yours differs.
 
 ```bash
-git clone https://github.com/robbsbro69/nixos-dotfiles ~/nixos-dotfiles
+git clone https://github.com/robbsbro69/nixos ~/nixos-dotfiles
 cd ~/nixos-dotfiles
 sudo nixos-generate-config --show-hardware-config > hardware-configuration.nix
 
