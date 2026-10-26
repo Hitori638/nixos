@@ -143,6 +143,7 @@ Item {
 		}
 
 		property string _pendingTitle: ""
+		property string mediaUrl: ""
 		property string _pendingArtist: ""
 
     	property string mediaText: ""
@@ -299,6 +300,7 @@ Item {
 	                  case "status": bar.mediaClass = val.toLowerCase(); break
 	                  case "pos":    bar.mediaPosition = parseInt(val) || 0; break
 	                  case "len":    bar.mediaLength = parseInt(val) || 0; break
+	                  case "url":    bar.mediaUrl = val; break
 	                  case "title":  bar._pendingTitle = val; break
 	                  case "artist":
 	                      bar._pendingArtist = val
@@ -1365,7 +1367,7 @@ Notch {
 			readonly property string cur: lyrIdx >= 0 && lyrIdx < lines.length ? lines[lyrIdx][1] : ""
 
 			function refetch() {
-				var k = bar._pendingArtist + "|" + bar._pendingTitle
+				var k = JSON.stringify([bar._pendingArtist, bar._pendingTitle, bar.mediaLength, bar.mediaUrl])
 				if (bar._pendingTitle === "" || k === key) return
 				key = k
 				lines = []
@@ -1385,7 +1387,7 @@ Notch {
 				triedSubs = true
 				retries = 0
 				subsProc.running = false
-				subsProc.command = ["python3", subsScript, key, bar._pendingTitle, bar._pendingArtist, "" + bar.mediaLength]
+				subsProc.command = ["python3", subsScript, key, bar._pendingTitle, bar._pendingArtist, "" + bar.mediaLength, bar.mediaUrl]
 				Qt.callLater(function() { subsProc.running = true })
 			}
 			function gotResult(o, kind) {
@@ -1422,6 +1424,8 @@ Notch {
 			Connections {
 				target: bar
 				function onMediaTextChanged() { lyrDebounce.restart() }
+				function onMediaUrlChanged() { lyrDebounce.restart() }
+				function onMediaLengthChanged() { lyrDebounce.restart() }
 			}
 			Timer { id: lyrDebounce; interval: 700; onTriggered: lyricStrip.refetch() }
 			Process {

@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""subs.py KEY TITLE [CHANNEL] [DURATION_S]
+"""subs.py KEY TITLE CHANNEL DURATION_S MEDIA_URL
 YouTube subtitles for whatever the browser is playing, for the bar ticker.
-  1. finds the video by its title (yt-dlp search, picks the closest duration)
+  1. uses the YouTube video ID from the actual MPRIS media URL
   2. reads its caption tracks and downloads one (English → Hindi → Nepali, real before auto)
 Uses your Zen/Firefox YouTube cookies so YouTube doesn't block it (HTTP 429).
 Prints one JSON line like lyrics.py: {"key","ok","lines":[[sec,"text"],...],"lang"} or {"key","ok":false,"why"}
 Cached in ~/.cache/quickshell/subs/.
 """
+import urllib.parse
 import difflib, glob, hashlib, json, os, re, shutil, subprocess, sys, time, urllib.request
 
 key = sys.argv[1] if len(sys.argv) > 1 else ""
@@ -16,6 +17,7 @@ try:
     duration = float(sys.argv[4]) if len(sys.argv) > 4 else 0
 except ValueError:
     duration = 0
+media_url = sys.argv[5] if len(sys.argv) > 5 else ""
 CACHE = os.path.expanduser("~/.cache/quickshell/subs")
 LANGS = ["en", "en-US", "en-GB", "en-IN", "hi", "ne"]
 DEBUG = os.environ.get("SUBS_DEBUG") == "1"
@@ -65,11 +67,36 @@ def out(o):
     sys.exit(0)
 
 
-if not title:
-    out({"ok": False, "why": "no title"})
+def youtube_id(value):
+    try:
+        parsed = urllib.parse.urlparse(value)
+        if parsed.scheme not in ("https", "http"):
+            return None
+        host = (parsed.hostname or "").lower()
+        parts = parsed.path.strip("/").split("/")
+        if host in ("youtu.be", "www.youtu.be"):
+            candidate = parts[0] if len(parts) == 1 else ""
+        elif host in ("youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com"):
+            if parsed.path == "/watch":
+                candidate = urllib.parse.parse_qs(parsed.query).get("v", [""])[0]
+            elif len(parts) == 2 and parts[0] in ("shorts", "embed", "live"):
+                candidate = parts[1]
+            else:
+                candidate = ""
+        else:
+            return None
+        return candidate if re.fullmatch(r"[A-Za-z0-9_-]{11}", candidate) else None
+    except ValueError:
+        return None
+
+
+vid = youtube_id(media_url)
+if not vid:
+    out({"ok": False, "why": "no supported YouTube media URL"})
 if not shutil.which("yt-dlp"):
     out({"ok": False, "why": "yt-dlp not installed"})
 
+CACHE = os.path.join(CACHE, "by-video", vid)
 os.makedirs(CACHE, exist_ok=True)
 cf = os.path.join(CACHE, hashlib.sha1(f"v4|{PREF}|{title}|{channel}".encode()).hexdigest() + ".json")
 try:
@@ -133,31 +160,7 @@ def save(res):
 
 try:
     BA = base_args()
-    # ── 1. find the video ──
-    def norm(x):
-        return re.sub(r"\W+", " ", x.lower()).strip()
-    found = run(BA + ["--flat-playlist", "--print", "%(id)s\t%(duration)s\t%(title)s", "ytsearch5:" + title])
-    best = None
-    for ln in found.splitlines():
-        parts = ln.split("\t")
-        if len(parts) < 3 or not parts[0]:
-            continue
-        try:
-            d = float(parts[1])
-        except ValueError:
-            d = 0
-        sim = difflib.SequenceMatcher(None, norm(parts[2]), norm(title)).ratio()
-        score = (0 if sim >= 0.85 else 1, abs(d - duration) if duration and d else 999)
-        dbg("candidate", parts[0], d, parts[2][:60], score)
-        if best is None or score < best[0]:
-            best = (score, parts[0])
-    # only trust a result whose title really matches — otherwise this isn't a YouTube
-    # video (e.g. an anime/streaming site), and a random video's subs would be wrong
-    if not best or best[0][0] == 1:
-        save({"ok": False, "why": "not a YouTube video (no matching title)"})
-    vid = best[1]
-    dbg("picked", vid)
-
+    # Never guess a video from its title.
     # ── 2. its caption tracks ──
     url = "https://www.youtube.com/watch?v=" + vid
     # YouTube hides captions from the default "web" client unless it has a PO token;
