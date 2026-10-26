@@ -25,6 +25,49 @@ PanelWindow {
 	property int activeWs: 1
 	property var workspaces: []          // [{ id, windows: [...] }]
 	property string hoverTitle: ""
+	// ── drag a window to another workspace ──
+	property string dragAddr: ""
+	property string dragCls: ""
+	property int dragFrom: -1
+	property int dropWs: -1
+	property real dragX: 0
+	property real dragY: 0
+	readonly property int newWs: {
+		var used = {}
+		for (var i = 0; i < workspaces.length; i++) used[workspaces[i].id] = true
+		for (var n = 1; n <= 10; n++) if (!used[n]) return n
+		return -1
+	}
+	function wsAt(px, py) {
+		if (newPill.visible) {
+			var np = newPill.mapFromItem(keyCatcher, px, py)
+			if (np.x >= 0 && np.y >= 0 && np.x <= newPill.width && np.y <= newPill.height) return newPill.dropId
+		}
+		var kids = grid.children
+		for (var i = 0; i < kids.length; i++) {
+			var c = kids[i]
+			if (c.dropId === undefined || !c.visible) continue
+			var q = c.mapFromItem(keyCatcher, px, py)
+			if (q.x >= 0 && q.y >= 0 && q.x <= c.width && q.y <= c.height) return c.dropId
+		}
+		return -1
+	}
+	// overview-drag v2: move THAT window (by address) without following it
+	function moveWindow(addr, ws) {
+		if (!addr || ws < 1) return
+		var a = ("" + addr).toLowerCase().replace(/^0x/, "")
+		var lua = "local w; for _, x in ipairs(hl.get_windows()) do "
+			+ "local ad = type(x.address) == 'number' and string.format('%x', x.address) or tostring(x.address):lower():gsub('^0x', ''); "
+			+ "if ad == '" + a + "' then w = x end end; "
+			+ "if not w then return end; "
+			+ "hl.dispatch(hl.dsp.window.move({ workspace = " + ws + ", follow = false, window = w }))"
+		Quickshell.execDetached(["bash", "-c",
+			"hyprctl eval \"$1\" >/dev/null 2>&1; "
+			+ "hyprctl dispatch \"hl.dsp.window.move({ workspace = $2, follow = false, window = 'address:0x$3' })\" >/dev/null 2>&1; true",
+			"_", lua, "" + ws, a])
+		moveRefresh.count = 0
+		moveRefresh.restart()
+	}
 	property real shown: root.overviewVisible ? 1 : 0
 	Behavior on shown { NumberAnimation { id: fade; duration: 180; easing.type: Easing.OutCubic } }
 
@@ -75,10 +118,11 @@ PanelWindow {
 				address: c.address,
 				cls: c["class"] || c.initialClass || "app",
 				title: c.title || c.initialTitle || "",
-				rx: Math.max(0, (c.at[0] - mon.x) / mon.w),
-				ry: Math.max(0, (c.at[1] - mon.y) / mon.h),
-				rw: Math.min(1, c.size[0] / mon.w),
-				rh: Math.min(1, c.size[1] / mon.h),
+				// clamped to the monitor so a tile never leaves its workspace box
+				rx: Math.max(0, Math.min(0.95, (c.at[0] - mon.x) / mon.w)),
+				ry: Math.max(0, Math.min(0.95, (c.at[1] - mon.y) / mon.h)),
+				rw: Math.max(0.05, Math.min(1, (c.at[0] - mon.x + c.size[0]) / mon.w) - Math.max(0, Math.min(0.95, (c.at[0] - mon.x) / mon.w))),
+				rh: Math.max(0.05, Math.min(1, (c.at[1] - mon.y + c.size[1]) / mon.h) - Math.max(0, Math.min(0.95, (c.at[1] - mon.y) / mon.h))),
 				floating: c.floating,
 				focused: c.focusHistoryID === 0
 			})
@@ -102,6 +146,14 @@ PanelWindow {
 		}
 	}
 	Timer { id: refreshDebounce; interval: 120; onTriggered: overview.refresh() }
+	// layout settles after Hyprland's animation — read it again a few times
+	Timer {
+		id: moveRefresh
+		property int count: 0
+		interval: 350
+		repeat: true
+		onTriggered: { overview.refresh(); if (++count >= 4) stop() }
+	}
 	Connections {
 		target: Hyprland
 		enabled: root.overviewVisible
@@ -143,7 +195,7 @@ PanelWindow {
 		Rectangle {
 			id: sheet
 			anchors.centerIn: parent
-			width: grid.width + 48
+			width: Math.max(grid.width, ovHeader.implicitWidth, 620) + 48
 			height: col.implicitHeight + 40
 			radius: 22
 			color: Qt.rgba(root.walBackground.r, root.walBackground.g, root.walBackground.b, 0.96)
@@ -158,6 +210,7 @@ PanelWindow {
 				spacing: 14
 
 				RowLayout {
+					id: ovHeader
 					Layout.fillWidth: true
 					spacing: 10
 					Text {
@@ -216,12 +269,26 @@ PanelWindow {
 							onClicked: root.toggleOverviewPreviews()
 						}
 					}
-					Text {
-						text: "click to jump · 1–9 switch · esc close"
-						color: root.walColor8
-						opacity: 0.7
-						font.pixelSize: 10
-						font.family: "JetBrainsMono Nerd Font"
+					Rectangle {
+						// drop a window here → it goes to the first free workspace
+						id: newPill
+						readonly property int dropId: overview.newWs
+						visible: overview.newWs > 0
+						readonly property bool hot: overview.dragAddr !== "" && overview.dropWs === dropId
+						width: newRow.implicitWidth + 18
+						height: 26
+						radius: 13
+						color: hot ? Qt.rgba(root.walColor2.r, root.walColor2.g, root.walColor2.b, 0.25)
+							: overview.dragAddr !== "" ? Qt.rgba(root.walColor5.r, root.walColor5.g, root.walColor5.b, 0.14) : root.card(0.3)
+						border.width: overview.dragAddr !== "" ? 1 : 0
+						border.color: hot ? root.walColor2 : root.walColor5
+						Row {
+							id: newRow
+							anchors.centerIn: parent
+							spacing: 5
+							Text { text: "󰐕"; color: newPill.hot ? root.walColor2 : root.walColor5; font.pixelSize: 12; font.family: "JetBrainsMono Nerd Font"; anchors.verticalCenter: parent.verticalCenter }
+							Text { text: "new workspace " + overview.newWs; color: root.walForeground; font.pixelSize: 10; font.family: "JetBrainsMono Nerd Font"; anchors.verticalCenter: parent.verticalCenter }
+						}
 					}
 				}
 
@@ -230,6 +297,7 @@ PanelWindow {
 					columns: overview.columns
 					spacing: 16
 					Layout.alignment: Qt.AlignHCenter
+					Layout.preferredWidth: implicitWidth
 					Repeater {
 						model: overview.workspaces
 						delegate: WsCard {
@@ -248,7 +316,9 @@ PanelWindow {
 						anchors.centerIn: parent
 						width: parent.width - 20
 						horizontalAlignment: Text.AlignHCenter
-						text: overview.hoverTitle !== "" ? overview.hoverTitle : "Hover a window to see its title"
+						text: overview.dragAddr !== "" ? (overview.dropWs > 0 ? "drop to move it to workspace " + overview.dropWs : "drop it on a workspace")
+							: overview.hoverTitle !== "" ? overview.hoverTitle
+							: "click a window to jump · drag it onto a workspace to move it · 1–9 switch · esc close"
 						color: overview.hoverTitle !== "" ? root.walForeground : root.walColor8
 						font.pixelSize: 11
 						font.family: "JetBrainsMono Nerd Font"
@@ -259,16 +329,45 @@ PanelWindow {
 		}
 	}
 
+	// window being dragged
+	Rectangle {
+		parent: keyCatcher
+		z: 100
+		visible: overview.dragAddr !== ""
+		readonly property color tint: overview.classColor(overview.dragCls || "app")
+		x: overview.dragX - width / 2
+		y: overview.dragY - height / 2
+		width: 120; height: 70; radius: 10
+		color: Qt.rgba(tint.r, tint.g, tint.b, 0.35)
+		border.width: 2
+		border.color: tint
+		Image {
+			anchors.centerIn: parent
+			width: 30; height: 30
+			source: overview.dragCls !== "" ? root.iconFor(overview.dragCls) : ""
+			sourceSize: Qt.size(60, 60)
+			fillMode: Image.PreserveAspectFit
+		}
+		Text {
+			anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: 4 }
+			text: overview.dropWs > 0 ? "→ " + overview.dropWs : ""
+			color: root.walForeground
+			font.pixelSize: 10; font.bold: true; font.family: "JetBrainsMono Nerd Font"
+		}
+	}
+
 	component WsCard: Rectangle {
 		id: wcard
 		property var ws
+		readonly property int dropId: ws.id
+		readonly property bool dropHere: overview.dragAddr !== "" && overview.dropWs === ws.id && ws.id !== overview.dragFrom
 		readonly property bool current: ws.id === overview.activeWs
 		width: overview.cardW
 		height: map.height + 52
 		radius: 16
 		color: cardMa.containsMouse ? root.hover(0.05) : root.card(0.35)
-		border.width: current ? 2 : 1
-		border.color: current ? root.walColor5 : Qt.rgba(root.walColor8.r, root.walColor8.g, root.walColor8.b, 0.3)
+		border.width: dropHere ? 3 : (current ? 2 : 1)
+		border.color: dropHere ? root.walColor2 : (current ? root.walColor5 : Qt.rgba(root.walColor8.r, root.walColor8.g, root.walColor8.b, 0.3))
 		Behavior on color { ColorAnimation { duration: 120 } }
 
 		MouseArea {
@@ -340,13 +439,14 @@ PanelWindow {
 					readonly property color tint: overview.classColor(modelData.cls)
 					x: modelData.rx * map.width + 2
 					y: modelData.ry * map.height + 2
-					width: Math.max(18, modelData.rw * map.width - 4)
-					height: Math.max(14, modelData.rh * map.height - 4)
+					width: Math.min(map.width - x - 2, Math.max(18, modelData.rw * map.width - 4))
+					height: Math.min(map.height - y - 2, Math.max(14, modelData.rh * map.height - 4))
 					radius: 6
 					color: Qt.rgba(tint.r, tint.g, tint.b, winMa.containsMouse ? 0.38 : 0.22)
 					border.width: winMa.containsMouse || modelData.focused ? 2 : 1
 					border.color: Qt.rgba(tint.r, tint.g, tint.b, winMa.containsMouse || modelData.focused ? 1 : 0.6)
 					z: winMa.containsMouse ? 10 : (modelData.floating ? 2 : 1)
+					opacity: overview.dragAddr === modelData.address ? 0.3 : 1
 					Behavior on color { ColorAnimation { duration: 100 } }
 
 					readonly property string iconSrc: root.iconFor(modelData.cls)
@@ -433,7 +533,34 @@ PanelWindow {
 						cursorShape: Qt.PointingHandCursor
 						onEntered: overview.hoverTitle = root.prettyName(win.modelData.cls) + "  —  " + win.modelData.title
 						onExited: if (overview.hoverTitle.indexOf(root.prettyName(win.modelData.cls) + "  —  ") === 0) overview.hoverTitle = ""
-						onClicked: root.focusWindow(win.modelData.address, wcard.ws.id)
+						preventStealing: true
+						property real px: 0
+						property real py: 0
+						property bool wasDrag: false
+						onPressed: function(mouse) { px = mouse.x; py = mouse.y; wasDrag = false }
+						onPositionChanged: function(mouse) {
+							if (!pressed) return
+							var k = winMa.mapToItem(keyCatcher, mouse.x, mouse.y)
+							if (overview.dragAddr === "" && Math.abs(mouse.x - px) + Math.abs(mouse.y - py) > 8) {
+								overview.dragAddr = win.modelData.address
+								overview.dragCls = win.modelData.cls
+								overview.dragFrom = wcard.ws.id
+								wasDrag = true
+							}
+							if (overview.dragAddr !== "") {
+								overview.dragX = k.x
+								overview.dragY = k.y
+								overview.dropWs = overview.wsAt(k.x, k.y)
+							}
+						}
+						onReleased: function(mouse) {
+							if (overview.dragAddr === "") return
+							var target = overview.dropWs, addr = overview.dragAddr, from = overview.dragFrom
+							overview.dragAddr = ""; overview.dragCls = ""; overview.dropWs = -1; overview.dragFrom = -1
+							if (target > 0 && target !== from) overview.moveWindow(addr, target)
+						}
+						onCanceled: { overview.dragAddr = ""; overview.dropWs = -1; overview.dragFrom = -1 }
+						onClicked: if (!wasDrag) root.focusWindow(win.modelData.address, wcard.ws.id)
 					}
 				}
 			}

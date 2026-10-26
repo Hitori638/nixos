@@ -17,6 +17,7 @@
     binfmt = true;
   };
   programs.nix-ld.enable = true;
+  programs.gpu-screen-recorder.enable = true;
   programs.nix-ld.libraries = [
     pkgs.cudaPackages.cudatoolkit
     config.hardware.nvidia.package

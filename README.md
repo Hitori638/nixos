@@ -24,6 +24,7 @@ A NixOS desktop built around **Hyprland** (configured in Lua) and a hand-written
 - [Pomodoro & focus mode](#pomodoro--focus-mode)
 - [Theming](#theming)
 - [Hyprland](#hyprland)
+- [Neovim](#neovim)
 - [Services](#services)
 - [Keybinds](#keybinds)
 - [IPC](#ipc)
@@ -163,16 +164,16 @@ All panels slide in from their edge, take keyboard focus, and close with `Esc`.
 
 - **Dashboard** — avatar, power row (poweroff / reboot / lock / suspend / logout), night light (scroll for 1500–6500 K) and light/dark toggles, battery, CPU / RAM / disk rings, volume and brightness sliders, clock.
 - **Launcher** — usage-sorted apps, plus a wallpaper tab.
-- **Music** — title, artist, seek bar, controls on a live cava backdrop; dancing GIF or draggable vinyl; player picker (Auto or a pinned MPRIS player).
+- **Music** — opens right under the music component in the bar. Title, artist, seek bar, controls on a live cava backdrop; dancing GIF or draggable vinyl; player picker (Auto or a pinned MPRIS player).
 - **Sticky notes** — a floating note you **drag anywhere** by its header (position remembered). Tabs, six paper colours, autosave to `~/.local/share/quickshell/notes.json` (outside the repo). Stays open while you use other panels. `Ctrl+N` new · `Ctrl+W` delete · `Ctrl+Tab` switch.
-- **Screen recorder** — full screen, a specific monitor, or a `slurp` region. Files go to `~/Videos/screen-recordings/`. Also `config/scripts/record.sh full|output NAME|region|stop|toggle|status`.
+- **Screen recorder** — full screen, a specific monitor, or a `slurp` region, with a **Sound** switch: laptop audio · laptop + mic · off. Uses [gpu-screen-recorder](https://git.dec05eba.com/gpu-screen-recorder/about/) (hardware encoding, 60 fps), records to `.mkv` so nothing is lost if it crashes, then remuxes to `.mp4` in `~/Videos/screen-recordings/`. A watchdog saves and notifies if the recorder stalls; stop always works. Also `config/scripts/record.sh full|output NAME|region|stop|toggle|status`, log in `~/.cache/qs-record.log`.
 - **Clipboard** — cliphist history with image thumbnails, emoji and kaomoji search.
 - **Notification center** — 50-item history and Do Not Disturb.
 - **Wi-Fi / Bluetooth** — connect with password; pair / connect / forget.
 - **Calendar** — AD and Bikram Sambat (BS 2000–2090, full BS ↔ AD conversion).
 - **Clock** — analog clock, timer, stopwatch with laps, alarms.
 - **Equalizer** — 10 bands (32 Hz – 16 kHz, ±12 dB), presets, response curve; runs a PipeWire filter-chain (`scripts/eq.sh`).
-- **Workspace overview** — every occupied workspace with a live mini-map of its windows; click to jump, `1`–`9` to switch.
+- **Workspace overview** — every occupied workspace with a live mini-map of its windows. Click a window to jump to it, **drag it onto another workspace (or `＋ new workspace`) to move it there**, `1`–`9` to switch.
 - **Screen time** — today's total, hourly chart, 7-day view with **previous-week navigation** (arrows, or the `this week` / `today` button to jump back), most-used apps. Counts time at the computer: pauses after 2 min without input or when locked, but **keeps counting while a video plays** (browser, mpv, VLC, Jellyfin…). Music alone doesn't count when you're idle. Days split at midnight. Data in `~/.local/share/quickshell/screentime.json`, 35 days kept.
 - **Bar menu** — every bar setting from the table above, plus theme previews.
 
@@ -225,10 +226,41 @@ Wallpapers live in `~/wallpapers/`. Picking one runs `awww img` with a transitio
 
 `hyprland.lua` requires `monitors`, `env`, `execs`, `general`, `mocha`, `animations`, `gestures`, `keybinds` and `rules` from `config/hypr/hyprland/`.
 
+- **Monitors** — external only right now: `HDMI-A-1` 1920×1080@60, `eDP-1` disabled. Dual-screen (laptop at 144 Hz + HDMI side by side) and laptop-only layouts are kept commented in `monitors.lua`.
 - **Startup** — ssh-add, `awww-daemon`, pywal, night light restore, hypridle, cliphist watchers, polkit agent, Quickshell.
 - **Idle** — dim at 4 min, lock at 8 min, screen off at 8.5 min.
-- **Gestures** — 3-finger vertical: workspaces · horizontal: scroll-move · 4-finger pinch: fullscreen.
-- **Rules** — Zen → 1, Obsidian → 2, Spotify → 3, floating PiP, idle inhibit for video.
+- **Gestures** — 3-finger vertical: switch workspace · 3-finger horizontal: scroll-move · 4-finger pinch out / in: fullscreen on / off.
+- **Rules**
+  - Zen → workspace 1, Obsidian → 2, Spotify → 3 (silent, no focus steal)
+  - Picture-in-Picture: floating, pinned, aspect-locked, bottom-right at ¼ size
+  - screen-sharing indicator: floating, pinned, bottom-centre · Telegram media viewer floats
+  - idle inhibit for mpv / celluloid, YouTube in Zen, and fullscreen Zen
+  - no shadow on tiled windows, 4 px rounding on floating ones, square XWayland windows, JetBrains dialog fixes
+  - dim behind polkit / keyring / file-picker dialogs
+  - pomodoro-bomb pinned top-right without chrome; its blast overlay covers the whole monitor
+  - Quickshell layers: blur, alpha thresholds and no-anim rules for the bar, popups and notifications
+
+---
+
+## Neovim
+
+lazy.nvim, bootstrapped from `init.lua`; one file per plugin in `config/nvim/lua/plugins/`.
+
+| Plugin                                      | Purpose                                                    |
+| ------------------------------------------- | ---------------------------------------------------------- |
+| tokyonight                                  | colour scheme                                              |
+| lsp (nvim-lspconfig)                        | language servers (rust_analyzer, lua_ls …)                 |
+| cmp                                         | completion + snippets                                      |
+| autoformat (conform.nvim)                   | format on save: rustfmt, stylua, biome / prettier, alejandra |
+| telescope                                   | files, grep, buffers, LSP pickers                          |
+| treesitter                                  | highlighting / indent                                      |
+| harpoon                                     | quick file slots                                           |
+| gitsigns, git-conflict                      | git in the gutter, conflict helpers                        |
+| oil, neotree, yazi                          | file browsing three ways                                   |
+| dashboard                                   | start screen                                               |
+| lualine, which-key                          | statusline, key hints                                      |
+| mini, autopairs, tabout, comment            | editing comfort                                            |
+| silicon, markdown-preview, colorizer        | code screenshots, live markdown, colour swatches           |
 
 ---
 
@@ -237,11 +269,12 @@ Wallpapers live in `~/wallpapers/`. Picking one runs `awww img` with a transitio
 | What          | Where                     | Notes                                                       |
 | ------------- | ------------------------- | ----------------------------------------------------------- |
 | Jellyfin      | `services/jellyfin.nix`   | runs as `alpha`, waits for `/mnt/ssd`, library scan every 15 min (`/etc/jellyfin-api-key`) |
-| Transmission  | `services/transmission.nix` | web UI on `:9091` — allow LAN / Tailscale with `rpc-whitelist` |
+| Transmission  | `services/transmission.nix` | web UI on `:9091` |
 | MPD           | `services/media.nix`      | PipeWire output + `/tmp/mpd.fifo` for visualizers            |
 | Honne         | `services/media.nix`      | Podman container on `:7417`, env in `/etc/honne.env`         |
 | Tailscale     | `services/tailscale.nix`  | MagicDNS (`100.100.100.100`)                                 |
 | VirtualBox / Podman / nix-ld | `display/hyprland.nix` | extension pack, `dockerCompat`, CUDA libs for foreign binaries |
+| gpu-screen-recorder | `display/hyprland.nix` | `programs.gpu-screen-recorder` (capture permission) for the recorder |
 | Nix           | `nix.nix`                 | weekly GC (> 7 days), auto-optimise, Hyprland / nix-community / kopuz caches |
 
 ---
@@ -259,7 +292,6 @@ Wallpapers live in `~/wallpapers/`. Picking one runs `awww img` with a transitio
 | `Super+C`                              | Clipboard                           |
 | `Super+Shift+N`                        | Sticky notes                        |
 | `Super+P`                              | Pomodoro panel                      |
-| `Super+Shift+P`                        | Pomodoro pause / resume             |
 | `Super+B` / `Super+Shift+B` / `Super+Ctrl+B` | Bar show-hide / flip top-bottom / bar menu |
 | `Super+Shift+R`                        | Screen recorder menu                |
 | `Super+R` / `Super+Alt+R` / `Super+Ctrl+R` | Record external / laptop / region |
@@ -349,7 +381,7 @@ Other aliases: `ff` / `gf` (fastfetch with a random logo), `ls` / `ll` (eza), `w
 
 ## Credits
 
-[NixOS](https://nixos.org) · [Hyprland](https://hyprland.org) · [Quickshell](https://quickshell.org) by outfoxxed · [Catppuccin](https://catppuccin.com) · [LRCLIB](https://lrclib.net) · [yt-dlp](https://github.com/yt-dlp/yt-dlp) · Quickshell inspiration from [Harman1307/dotfiles-Hyprland](https://github.com/Harman1307/dotfiles-Hyprland)
+[NixOS](https://nixos.org) · [Hyprland](https://hyprland.org) · [Quickshell](https://quickshell.org) by outfoxxed · [Catppuccin](https://catppuccin.com) · [LRCLIB](https://lrclib.net) · [yt-dlp](https://github.com/yt-dlp/yt-dlp) · [gpu-screen-recorder](https://git.dec05eba.com/gpu-screen-recorder/about/) · Quickshell inspiration from [Harman1307/dotfiles-Hyprland](https://github.com/Harman1307/dotfiles-Hyprland)
 
 ## License
 

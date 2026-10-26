@@ -205,6 +205,7 @@ ShellRoot {
 	property bool clipboardVisible: false
 	property bool clockPanelVisible: false
 	property bool notesVisible: false
+	property real musicAnchorX: -1          // screen x of the bar's music component (centre)
 	property bool recordMenuVisible: false
 	property bool nightLight: false
 	property bool recording: false
@@ -1431,7 +1432,7 @@ ShellRoot {
 	}
 	Process {
 		id: recPollProc
-		command: ["pgrep", "-x", "wf-recorder"]
+		command: ["bash", "-c", "pgrep -x wf-recorder || pgrep -f 'gpu-screen-recorder(-wrapped)? -w'"]
 		onExited: (code, status) => {
 			var on = code === 0
 			if (on && !root.recording) root.recStartedAt = Date.now()

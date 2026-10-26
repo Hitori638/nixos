@@ -24,6 +24,11 @@ PanelWindow {
 		top: root.recordMenuVisible ? root.barGapV : -(implicitHeight + 20)
 	}
 	implicitWidth: 300
+	property string recAudio: "desktop"          // desktop | both | none  (state/record-audio)
+	FileView {
+		path: root.statePath + "/record-audio"
+		onLoaded: { var t = text().trim(); if (["desktop", "both", "none"].indexOf(t) >= 0) recMenu.recAudio = t }
+	}
 	implicitHeight: card.implicitHeight
 	color: "transparent"
 	focusable: true
@@ -205,6 +210,58 @@ PanelWindow {
 						sub: "Drag to choose an area"
 						hotkey: "R"
 						onPicked: root.startRecording("region", "")
+					}
+				}
+
+				// ── Sound ───────────────────────────────────────────────
+				ColumnLayout {
+					visible: !root.recording
+					Layout.fillWidth: true
+					spacing: 6
+					Text {
+						text: "SOUND"
+						color: root.walColor8
+						font.pixelSize: 9
+						font.bold: true
+						font.letterSpacing: 1.2
+						font.family: "JetBrainsMono Nerd Font"
+					}
+					Rectangle {
+						Layout.fillWidth: true
+						Layout.preferredHeight: 32
+						radius: 9
+						color: root.card(0.35)
+						RowLayout {
+							anchors.fill: parent
+							anchors.margins: 3
+							spacing: 3
+							Repeater {
+								model: [{ k: "desktop", i: "󰕾", t: "Laptop" }, { k: "both", i: "󰍬", t: "+ Mic" }, { k: "none", i: "󰖁", t: "Off" }]
+								delegate: Rectangle {
+									id: aOpt
+									required property var modelData
+									readonly property bool sel: recMenu.recAudio === modelData.k
+									Layout.fillWidth: true
+									Layout.fillHeight: true
+									radius: 7
+									color: sel ? Qt.rgba(root.walColor1.r, root.walColor1.g, root.walColor1.b, 0.22)
+										: (aMa.containsMouse ? root.hover(0.06) : "transparent")
+									Row {
+										anchors.centerIn: parent
+										spacing: 6
+										Text { text: aOpt.modelData.i; color: aOpt.sel ? root.walColor1 : root.walColor8; font.pixelSize: 13; font.family: "JetBrainsMono Nerd Font"; anchors.verticalCenter: parent.verticalCenter }
+										Text { text: aOpt.modelData.t; color: aOpt.sel ? root.walForeground : root.walColor8; font.pixelSize: 11; font.bold: aOpt.sel; font.family: "JetBrainsMono Nerd Font"; anchors.verticalCenter: parent.verticalCenter }
+									}
+									MouseArea {
+										id: aMa
+										anchors.fill: parent
+										hoverEnabled: true
+										cursorShape: Qt.PointingHandCursor
+										onClicked: { recMenu.recAudio = aOpt.modelData.k; root.saveState("record-audio", aOpt.modelData.k) }
+									}
+								}
+							}
+						}
 					}
 				}
 

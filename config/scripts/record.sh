@@ -7,33 +7,123 @@
 #   record.sh stop            stop the running recording
 #   record.sh toggle          stop if recording, otherwise record the focused monitor
 #   record.sh status          prints "recording" or "idle"
+#
+# Recorder: gpu-screen-recorder when installed (hardware encoding, correct timestamps —
+# wf-recorder on this Hyprland stops advancing timestamps after ~40 s), else wf-recorder.
+#
+# Why it's built like this:
+#   * records to .mkv first — an .mkv is still playable even if wf-recorder hangs or has to be
+#     killed (an .mp4 without its ending is unplayable). After stopping it's remuxed to .mp4
+#     (no re-encode, takes a second).
+#   * constant 30 fps + x264 "ultrafast" so the encoder never falls behind and stalls.
+#   * a watchdog stops + saves the recording if the file stops growing for 20 s, and tells you.
+#   * stop escalates INT → TERM → KILL, so the timer in the bar can't keep running forever.
+#   * wf-recorder's own messages go to ~/.cache/qs-record.log
 
 DIR="$HOME/Videos/screen-recordings"
-STATE="${XDG_RUNTIME_DIR:-/tmp}/qs-record.last"
-mkdir -p "$DIR"
+RUN="${XDG_RUNTIME_DIR:-/tmp}"
+STATE="$RUN/qs-record.last"
+LOG="$HOME/.cache/qs-record.log"
+mkdir -p "$DIR" "$(dirname "$LOG")"
 
-is_recording() { pgrep -x wf-recorder >/dev/null; }
+# NixOS runs gsr as ".gpu-screen-recorder-wrapped", so match both names
+GSR_RE='gpu-screen-recorder(-wrapped)? -w'
+is_recording() { pgrep -x wf-recorder >/dev/null || pgrep -f "$GSR_RE" >/dev/null; }
+rec_kill() { pkill "-$1" -x wf-recorder 2>/dev/null; pkill "-$1" -f "$GSR_RE" 2>/dev/null; true; }
+# sound: what's playing on the laptop is recorded by default.
+#   RECORD_AUDIO=none   no sound      RECORD_AUDIO=both   laptop sound + microphone
+AUDIO="${RECORD_AUDIO:-$(cat "$HOME/.config/quickshell/state/record-audio" 2>/dev/null || echo desktop)}"
+have_gsr() { command -v gpu-screen-recorder >/dev/null; }
+notify() { notify-send -a Recorder "$@" 2>/dev/null || true; }
 
 start() {
+	# start -o OUTPUT | start -g "X,Y WxH" | start   (whole screen)
 	if is_recording; then
-		notify-send -a Recorder "Already recording" "Stop the current recording first."
+		notify "Already recording" "Stop the current recording first."
 		exit 0
 	fi
-	local file="$DIR/$(date +%Y-%m-%d_%H-%M-%S).mp4"
-	echo "$file" >"$STATE"
-	setsid -f wf-recorder "$@" -f "$file" >/dev/null 2>&1
+	local base="$DIR/$(date +%Y-%m-%d_%H-%M-%S)"
+	echo "$base" >"$STATE"
+	if have_gsr; then
+		local target="screen" extra=()
+		if [ "$1" = "-o" ]; then target="$2"
+		elif [ "$1" = "-g" ]; then
+			# slurp "X,Y WxH" → gsr "WxH+X+Y"
+			local xy="${2%% *}" wh="${2##* }"
+			target="region"; extra=(-region "${wh}+${xy%,*}+${xy#*,}")
+		fi
+		echo "=== $(date) — gpu-screen-recorder -w $target ${extra[*]}" >>"$LOG"
+		local aud=()
+		case "$AUDIO" in
+			desktop) aud=(-a default_output) ;;
+			both) aud=(-a "default_output|default_input") ;;
+		esac
+		setsid -f gpu-screen-recorder -w "$target" "${extra[@]}" -f 60 "${aud[@]}" -c mkv -o "$base.mkv" >>"$LOG" 2>&1
+	else
+		echo "=== $(date) — wf-recorder $*" >>"$LOG"
+		local aud=()
+		[ "$AUDIO" != none ] && aud=("--audio=$(pactl get-default-sink 2>/dev/null).monitor")
+		setsid -f wf-recorder "$@" "${aud[@]}" -r 30 -c libx264 -p preset=ultrafast -p crf=23 -x yuv420p \
+			-f "$base.mkv" >>"$LOG" 2>&1
+	fi
+	sleep 1.5
+	if ! is_recording; then
+		notify -u critical "Recording didn't start" "See ~/.cache/qs-record.log"
+		rm -f "$STATE"
+		exit 1
+	fi
+	setsid -f "$0" _watchdog "$base.mkv" >/dev/null 2>&1
+}
+
+finish() {
+	# turn the .mkv into an .mp4 (stream copy); keep the .mkv if that fails
+	local base mkv mp4
+	base=$(cat "$STATE" 2>/dev/null)
+	[ -z "$base" ] && return
+	mkv="$base.mkv"; mp4="$base.mp4"
+	[ -s "$mkv" ] || { notify -u critical "Recording failed" "Nothing was written — see ~/.cache/qs-record.log"; return; }
+	if ffmpeg -nostdin -loglevel error -y -i "$mkv" -c copy -movflags +faststart "$mp4" >>"$LOG" 2>&1; then
+		rm -f "$mkv"
+		notify "Recording saved" "${mp4/#$HOME/\~}"
+	else
+		notify "Recording saved (mkv)" "${mkv/#$HOME/\~}"
+	fi
+	rm -f "$STATE"
 }
 
 stop() {
-	is_recording || exit 0
-	pkill -INT -x wf-recorder
-	for _ in $(seq 1 40); do
-		is_recording || break
-		sleep 0.1
+	is_recording || { [ -f "$STATE" ] && finish; exit 0; }
+	rec_kill INT
+	for _ in $(seq 1 60); do is_recording || break; sleep 0.1; done
+	if is_recording; then
+		echo "--- recorder ignored SIGINT, sending TERM" >>"$LOG"
+		rec_kill TERM
+		for _ in $(seq 1 20); do is_recording || break; sleep 0.1; done
+	fi
+	if is_recording; then
+		echo "--- recorder ignored TERM, killing" >>"$LOG"
+		rec_kill KILL
+		sleep 0.3
+	fi
+	finish
+}
+
+watchdog() {
+	# runs next to the recording: if the file stops growing for 20 s, stop and save it
+	local f="$1" last=-1 same=0 size
+	sleep 6
+	while is_recording; do
+		size=$(stat -c %s "$f" 2>/dev/null || echo 0)
+		if [ "$size" = "$last" ]; then same=$((same + 1)); else same=0; fi
+		last=$size
+		if [ "$same" -ge 4 ]; then
+			echo "--- watchdog: $f stopped growing at $size bytes" >>"$LOG"
+			notify -u critical "Recording stalled" "the recorder stopped writing — saved what was recorded."
+			"$0" stop
+			exit 0
+		fi
+		sleep 5
 	done
-	local last
-	last=$(cat "$STATE" 2>/dev/null)
-	notify-send -a Recorder "Recording saved" "${last/#$HOME/\~}"
 }
 
 focused_output() {
@@ -63,6 +153,7 @@ toggle)
 status)
 	is_recording && echo recording || echo idle
 	;;
+_watchdog) watchdog "$2" ;;
 *)
 	echo "usage: record.sh {full|output NAME|region|stop|toggle|status}" >&2
 	exit 1

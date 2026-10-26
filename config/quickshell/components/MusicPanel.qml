@@ -345,7 +345,9 @@ PanelWindow {
 			}
 		}
 		Column {
-			anchors.horizontalCenter: parent.horizontalCenter
+			// under the bar's music component (falls back to centred)
+			x: root.musicAnchorX < 0 ? (parent.width - width) / 2
+				: Math.max(8, Math.min(parent.width - width - 8, root.musicAnchorX - root.barInsetLeft - width / 2))
 			spacing: 8
 			Rectangle {
 				id: musicCard

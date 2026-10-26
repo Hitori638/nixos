@@ -121,6 +121,13 @@ Item {
 		readonly property int floatGap: root.barFloating && !bar.vertical ? 4 : 0
 		readonly property int floatSide: root.barFloating && !bar.vertical ? 4 : 0
 		property string mediaPlayer: "%any"
+		// tell the music panel where the music component sits, so it opens right under it
+		Binding {
+			target: root
+			property: "musicAnchorX"
+			value: !bar.vertical && bar.style !== "i3" && mediaNotch.visible && mediaNotch.width > 0
+				? bar.floatSide + mediaNotch.x + mediaNotch.width / 2 : -1
+		}
 		// media keys for the bar: the player that is PLAYING wins; no next/prev → seek 10 s
 		function mediaCtl() {
 			return 'want="$1"; act="$2"; p=""; '
