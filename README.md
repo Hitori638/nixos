@@ -197,7 +197,7 @@ The music sits on the left of the bar; the free space up to the battery shows a 
 
 - Language: the video's own language by default. `echo en > ~/.config/quickshell/subs-lang` prefers English (YouTube translation if needed); delete the file to go back.
 - Cache: `~/.cache/quickshell/{lyrics,subs}/` — rewatches are instant.
-- Debug: `SUBS_DEBUG=1 python3 ~/.config/quickshell/assets/subs.py x "<title>" "<channel>" <seconds>`
+- Debug: `SUBS_DEBUG=1 python3 ~/.config/quickshell/assets/subs.py x "<title>" "<channel>" <seconds> "<youtube-url>"`
 
 ---
 

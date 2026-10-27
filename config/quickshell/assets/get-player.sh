@@ -37,7 +37,7 @@ else
     [ -z "$best" ] && best=$(playerctl --list-all 2>/dev/null | head -1)
 fi
 
-[ -z "$best" ] && echo "status:Stopped" && exit 0
+[ -z "$best" ] && { echo "status:Stopped"; echo "url:"; exit 0; }
 
 status=$(playerctl --player="$best" status 2>/dev/null || echo "Stopped")
 
@@ -45,6 +45,7 @@ status=$(playerctl --player="$best" status 2>/dev/null || echo "Stopped")
 if [ "$status" = "Stopped" ] && echo "$best" | grep -qi "spotify"; then
     echo "player:$best"
     echo "status:Stopped"
+    echo "url:"
     echo "title:"
     echo "artist:"
     echo "arturl:"
@@ -53,6 +54,7 @@ if [ "$status" = "Stopped" ] && echo "$best" | grep -qi "spotify"; then
     exit 0
 fi
 
+url=$(playerctl --player="$best" metadata xesam:url 2>/dev/null)
 title=$(playerctl --player="$best" metadata title 2>/dev/null)
 artist=$(playerctl --player="$best" metadata artist 2>/dev/null)
 arturl=$(playerctl --player="$best" metadata mpris:artUrl 2>/dev/null)
@@ -62,6 +64,7 @@ len=$(( ${rawlen:-0} / 1000000 ))
 
 echo "player:$best"
 echo "status:$status"
+echo "url:$url"
 echo "title:$title"
 echo "artist:$artist"
 echo "arturl:$arturl"

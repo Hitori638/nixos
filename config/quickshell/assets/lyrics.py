@@ -5,7 +5,7 @@ Prints one JSON line: {"key": KEY, "ok": true, "lines": [[sec, "text"], ...]}
                   or {"key": KEY, "ok": false, "why": "..."}
 Results (hits and misses) are cached in ~/.cache/quickshell/lyrics/.
 """
-import hashlib, json, os, re, sys, time, urllib.parse, urllib.request
+import hashlib, json, os, re, sys, time, unicodedata, urllib.parse, urllib.request
 
 key = sys.argv[1] if len(sys.argv) > 1 else ""
 artist = sys.argv[2] if len(sys.argv) > 2 else ""
@@ -52,7 +52,7 @@ if not t:
     out({"ok": False, "why": "no title"})
 
 os.makedirs(CACHE, exist_ok=True)
-cf = os.path.join(CACHE, hashlib.sha1(f"{a.lower()}|{t.lower()}".encode()).hexdigest() + ".json")
+cf = os.path.join(CACHE, hashlib.sha1(f"v2|{a.casefold()}|{t.casefold()}|{duration}".encode()).hexdigest() + ".json")
 try:
     with open(cf, encoding="utf-8") as f:
         c = json.load(f)
@@ -85,10 +85,19 @@ def parse(lrc):
     return lines
 
 
+def identity(value):
+    value = unicodedata.normalize("NFKC", value).casefold()
+    return "".join(c for c in value if c.isalnum())
+
+
 def pick(items):
     best = None
     for it in items or []:
         if not it or not it.get("syncedLyrics"):
+            continue
+        if identity(clean_title(it.get("trackName") or "")) != identity(t):
+            continue
+        if not a or identity(clean_artist(it.get("artistName") or "")) != identity(a):
             continue
         d = abs((it.get("duration") or 0) - duration) if duration else 0
         if best is None or d < best[0]:
@@ -105,8 +114,7 @@ try:
         if duration:
             p["duration"] = int(round(duration))
         g = api("get", p)
-        if g and g.get("syncedLyrics"):
-            hit = g
+        hit = pick([g])
         if not hit:
             hit = pick(api("search", {"track_name": t, "artist_name": a}))
     if not hit:
