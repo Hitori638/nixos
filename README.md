@@ -193,11 +193,11 @@ The music sits on the left of the bar; the free space up to the battery shows a 
 | Other YouTube videos in the browser           | the video's own captions via yt-dlp (`assets/subs.py`)            | ~20–30 s    |
 | Netflix / anime sites / local files           | nothing — those don't expose subtitles                            |             |
 
-`subs.py` finds the video by its exact title, uses your Zen login cookies, and tries YouTube clients that don't need a PO token (`web_embedded`, `tv`, `android_vr`) when the default one hides captions. It prefers captions made from the video's own audio, joins auto-caption word fragments into readable chunks, and retries on rate limits.
+`subs.py` uses the actual YouTube media URL exposed by the player (and skips subtitles when that URL is unavailable), uses your Zen login cookies, and tries YouTube clients that don't need a PO token (`web_embedded`, `tv`, `android_vr`) when the default one hides captions. It prefers captions made from the video's own audio, joins auto-caption word fragments into readable chunks, and retries on rate limits.
 
 - Language: the video's own language by default. `echo en > ~/.config/quickshell/subs-lang` prefers English (YouTube translation if needed); delete the file to go back.
 - Cache: `~/.cache/quickshell/{lyrics,subs}/` — rewatches are instant.
-- Debug: `SUBS_DEBUG=1 python3 ~/.config/quickshell/assets/subs.py x "<title>" "<channel>" <seconds>`
+- Debug: `SUBS_DEBUG=1 python3 ~/.config/quickshell/assets/subs.py x "<title>" "<channel>" <seconds> "<youtube-url>"`
 
 ---
 
